@@ -441,10 +441,16 @@ async function handleItemReporting(ctx) {
   const step = ctx.session.reporting.step;
   if (step === "item_type") {
     const itemType = ctx.message.text;
-    if (["ID", "Phone", "Bag", "Other"].includes(itemType)) {
+    if (["Phone", "Bag", "Other"].includes(itemType)) {
       ctx.session.reporting.itemType = itemType;
       ctx.session.reporting.step = "description";
       await ctx.reply("Please describe the item:");
+    }
+
+    if (["ID"].includes(itemType)) {
+      ctx.session.reporting.itemType = itemType;
+      ctx.session.reporting.step = "description";
+      await ctx.reply("Please enter id no.:");
     }
   } else if (step === "description") {
     ctx.session.reporting.description = ctx.message.text;
@@ -489,10 +495,8 @@ async function completeItemReport(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
-    ctx.reply("Please register first using /start");
+    if (sessionData.has(id)) sessionData.delete(id);
+    await ctx.reply("Please register first using /start");
     return;
   }
 
@@ -523,10 +527,27 @@ async function completeItemReport(ctx) {
       await postToChannel(channelEnv, message, reporting.photo, user);
     }
 
+    if (reporting.itemType === "ID") {
+      const whoseUser = await User.findOne({
+        studentId: reporting.description.toUpperCase(),
+      });
+      if (whoseUser) {
+        let contactAddress;
+        if (user.username) {
+          contactAddress = `@${user.username}`;
+        } else {
+          contactAddress = user.phoneNumber;
+        }
+        const message = `🎉 Congrats! Your ID has been found! \n contact ${contactAddress}  `;
+        await bot.telegram.sendMessage(whoseUser.telegramId, message);
+      }
+    }
+
     await ctx.reply(
       `✅ Your ${reporting.type} item has been reported!`,
       mainMenu()
     );
+
     ctx.session.reporting = null;
   } catch (error) {
     console.error("Error completing item report:", error);
