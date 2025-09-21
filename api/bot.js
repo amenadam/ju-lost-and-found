@@ -555,9 +555,14 @@ async function completeItemReport(ctx) {
       return;
     }
 
+    let describeText = "Description";
+    if (reporting.type === "ID") {
+      describeText = "ID number";
+    }
+
     const message = `${
       reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
-    }\nType: ${reporting.itemType}\nDescription: ${
+    }\nType: ${reporting.itemType}\n${describeText}: ${
       reporting.description
     }\nReported by: ${user.fullName}`;
 
