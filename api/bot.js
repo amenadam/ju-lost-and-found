@@ -512,6 +512,16 @@ async function completeItemReport(ctx) {
     });
     await item.save();
 
+    if (
+      reporting.type !== "lost" &&
+      reporting.itemType === "ID" &&
+      reporting.description.toUpperCase() === user.studentId.toUpperCase()
+    ) {
+      ctx.reply("what?, you found your own ID");
+      ctx.session.reporting = null;
+      return;
+    }
+
     const message = `${
       reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
     }\nType: ${reporting.itemType}\nDescription: ${
