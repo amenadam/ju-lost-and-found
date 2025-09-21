@@ -517,7 +517,7 @@ async function completeItemReport(ctx) {
       reporting.itemType === "ID" &&
       reporting.description.toUpperCase() === user.studentId.toUpperCase()
     ) {
-      ctx.reply("what?, you found your own ID");
+      ctx.reply("what?, you found your own ID😂", mainMenu());
       ctx.session.reporting = null;
       return;
     }
