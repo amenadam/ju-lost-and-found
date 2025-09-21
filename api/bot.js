@@ -28,7 +28,14 @@ async function connectDB(uri) {
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const bot = new Telegraf(BOT_TOKEN);
-bot.use(session());
+const sessionData = new Map();
+bot.use((ctx, next) => {
+  const id = ctx.from?.id;
+  if (!id) return next();
+  if (!sessionData.has(id)) sessionData.set(id, {});
+  ctx.session = sessionData.get(id);
+  return next();
+});
 
 // Registration flow states
 const REGISTRATION_STATES = {
