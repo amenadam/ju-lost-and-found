@@ -4,39 +4,29 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 async function postToChannel(channel, message, photo = null, user = null) {
   try {
-    // Build contact button (username > phone > fallback)
-    let contactButton = null;
-    if (user) {
-      if (user.username) {
-        contactButton = {
-          text: "📩 Contact Reporter",
-          url: `https://t.me/${user.username}`,
-        };
-      } else if (user.phoneNumber) {
-        let phone = user.phoneNumber;
-        if (phone.startsWith("0")) {
-          phone = "+251" + phone.slice(1);
-        }
-
-        contactButton = {
-          text: "📞 Call Reporter",
-          url: `tel:${phone}`,
-        };
-      } else {
-        contactButton = {
-          text: "❌ No Contact Info",
-          callback_data: "no_contact",
-        };
+    if (user?.phoneNumber) {
+      let phone = user.phoneNumber;
+      if (phone.startsWith("0")) {
+        phone = "+251" + phone.slice(1);
       }
+      message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`;
     }
 
     const extra = {
       parse_mode: "HTML",
     };
 
-    if (contactButton) {
+    // Only add button if Telegram username
+    if (user?.username) {
       extra.reply_markup = {
-        inline_keyboard: [[contactButton]],
+        inline_keyboard: [
+          [
+            {
+              text: "📩 Contact Reporter",
+              url: `https://t.me/${user.username}`,
+            },
+          ],
+        ],
       };
     }
 
