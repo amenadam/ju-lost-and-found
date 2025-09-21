@@ -1,0 +1,19 @@
+{
+  "name": "julostandfound",
+  "version": "1.0.0",
+  "description": "Jimma University Lost & Found Telegram Bot",
+  "main": "deploy.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node deploy.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "telegraf": "^4.16.3",
+    "mongoose": "^8.18.1",
+    "tesseract.js": "^4.1.4",
+    "esbuild": "^0.14.47",
+    "fs-extra": "^11.1.0"
+  }
+}
