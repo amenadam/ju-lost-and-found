@@ -16,7 +16,16 @@ if (!cached) cached = global.mongoose = { conn: null, promise: null };
 async function connectDB(uri) {
   if (cached.conn) return cached.conn;
   if (!cached.promise) {
-    cached.promise = mongoose.connect(uri).then((mongoose) => mongoose);
+    const opts = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      bufferCommands: false,
+      bufferMaxEntries: 0,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    };
+
+    cached.promise = mongoose.connect(uri, opts).then((mongoose) => mongoose);
   }
   cached.conn = await cached.promise;
   return cached.conn;
@@ -50,17 +59,36 @@ function mainMenu() {
   ]).resize();
 }
 
+// Connect to DB with error handling
+let dbConnected = false;
 (async () => {
   try {
-    await connectDB(process.env.MONGODB_URI);
-    console.log("✅ Connected to MongoDB");
+    if (process.env.MONGODB_URI) {
+      await connectDB(process.env.MONGODB_URI);
+      console.log("✅ Connected to MongoDB");
+      dbConnected = true;
+    } else {
+      console.log("❌ MONGODB_URI not set");
+    }
   } catch (err) {
-    console.error("❌ MongoDB connection failed:", err);
+    console.error("❌ MongoDB connection failed:", err.message);
+    dbConnected = false;
   }
 })();
 
+// Check if DB is connected before performing DB operations
+async function checkDBConnection(ctx) {
+  if (!dbConnected) {
+    await ctx.reply("❌ Database connection issue. Please try again later.");
+    return false;
+  }
+  return true;
+}
+
 // Start command
 bot.start(async (ctx) => {
+  if (!(await checkDBConnection(ctx))) return;
+
   const userId = ctx.from.id;
   const user = await User.findOne({ telegramId: userId });
 
@@ -81,6 +109,8 @@ bot.start(async (ctx) => {
 // Unified text handler
 bot.on("text", async (ctx) => {
   try {
+    if (!(await checkDBConnection(ctx))) return;
+
     // Registration flow
     if (ctx.session.registrationState) {
       const state = ctx.session.registrationState;
@@ -102,23 +132,28 @@ bot.on("text", async (ctx) => {
           break;
         case REGISTRATION_STATES.PHONE_NUMBER:
           // Complete registration without photo verification
-          const user = new User({
-            telegramId: ctx.from.id,
-            fullName: ctx.session.fullName,
-            studentId: ctx.session.studentId,
-            currentYear: ctx.session.currentYear,
-            phoneNumber: ctx.message.text,
-            verified: true, // Set as verified without photo verification
-          });
-          await user.save();
+          try {
+            const user = new User({
+              telegramId: ctx.from.id,
+              fullName: ctx.session.fullName,
+              studentId: ctx.session.studentId,
+              currentYear: ctx.session.currentYear,
+              phoneNumber: ctx.message.text,
+              verified: true,
+            });
+            await user.save();
 
-          await ctx.reply("✅ Registration successful!", mainMenu());
+            await ctx.reply("✅ Registration successful!", mainMenu());
 
-          // Clear session data
-          delete ctx.session.registrationState;
-          delete ctx.session.fullName;
-          delete ctx.session.studentId;
-          delete ctx.session.currentYear;
+            // Clear session data
+            delete ctx.session.registrationState;
+            delete ctx.session.fullName;
+            delete ctx.session.studentId;
+            delete ctx.session.currentYear;
+          } catch (error) {
+            console.error("Registration error:", error);
+            await ctx.reply("❌ Registration failed. Please try again.");
+          }
           break;
       }
       return;
@@ -172,6 +207,8 @@ bot.on("text", async (ctx) => {
 // Unified photo handler
 bot.on("photo", async (ctx) => {
   try {
+    if (!(await checkDBConnection(ctx))) return;
+
     // Item reporting photo
     if (ctx.session.reporting?.step === "photo") {
       const photo = ctx.message.photo.pop();
@@ -189,6 +226,8 @@ bot.on("photo", async (ctx) => {
 
 // Report Lost / Found Items buttons
 bot.hears("📌 Report Lost Item", async (ctx) => {
+  if (!(await checkDBConnection(ctx))) return;
+
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
@@ -205,6 +244,8 @@ bot.hears("📌 Report Lost Item", async (ctx) => {
 });
 
 bot.hears("📦 Report Found Item", async (ctx) => {
+  if (!(await checkDBConnection(ctx))) return;
+
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
@@ -222,6 +263,8 @@ bot.hears("📦 Report Found Item", async (ctx) => {
 
 // My Profile button
 bot.hears("ℹ️ My Profile", async (ctx) => {
+  if (!(await checkDBConnection(ctx))) return;
+
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start", mainMenu());
@@ -239,6 +282,8 @@ bot.hears("ℹ️ My Profile", async (ctx) => {
 
 // Search button
 bot.hears("🔍 Search Lost/Found IDs", async (ctx) => {
+  if (!(await checkDBConnection(ctx))) return;
+
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
@@ -255,41 +300,54 @@ async function completeItemReport(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) return ctx.reply("Please register first using /start");
 
-  const ItemModel = reporting.type === "lost" ? LostItem : FoundItem;
-  const item = new ItemModel({
-    userId: user._id,
-    telegramId: ctx.from.id,
-    itemType: reporting.itemType,
-    description: reporting.description,
-    photo: reporting.photo,
-    studentIdNumber: user.studentId, // Add student ID to the report
-  });
-  await item.save();
+  try {
+    const ItemModel = reporting.type === "lost" ? LostItem : FoundItem;
+    const item = new ItemModel({
+      userId: user._id,
+      telegramId: ctx.from.id,
+      itemType: reporting.itemType,
+      description: reporting.description,
+      photo: reporting.photo,
+      studentIdNumber: user.studentId,
+    });
+    await item.save();
 
-  const message = `${
-    reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
-  }\nType: ${reporting.itemType}\nDescription: ${
-    reporting.description
-  }\nReported by: ${user.fullName} (${user.studentId})`;
+    const message = `${
+      reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
+    }\nType: ${reporting.itemType}\nDescription: ${
+      reporting.description
+    }\nReported by: ${user.fullName} (${user.studentId})`;
 
-  const channelEnv =
-    reporting.type === "lost"
-      ? process.env.CHANNEL_LOST_ITEMS
-      : process.env.CHANNEL_FOUND_ITEMS;
-  await postToChannel(channelEnv, message, reporting.photo);
+    const channelEnv =
+      reporting.type === "lost"
+        ? process.env.CHANNEL_LOST_ITEMS
+        : process.env.CHANNEL_FOUND_ITEMS;
 
-  await ctx.reply(
-    `✅ Your ${reporting.type} item has been reported!`,
-    mainMenu()
-  );
-  delete ctx.session.reporting;
+    if (channelEnv) {
+      await postToChannel(channelEnv, message, reporting.photo);
+    }
+
+    await ctx.reply(
+      `✅ Your ${reporting.type} item has been reported!`,
+      mainMenu()
+    );
+    delete ctx.session.reporting;
+  } catch (error) {
+    console.error("Error completing item report:", error);
+    await ctx.reply("❌ Failed to report item. Please try again.");
+  }
 }
 
 // Vercel serverless handler
 module.exports = async (req, res) => {
   if (req.method === "POST") {
     console.log("Received update:", JSON.stringify(req.body, null, 2));
-    await bot.handleUpdate(req.body, res);
+    try {
+      await bot.handleUpdate(req.body, res);
+    } catch (error) {
+      console.error("Error handling update:", error);
+      res.status(200).send("Error handling update");
+    }
   } else {
     res.status(200).send("Telegram bot webhook is running!");
   }
