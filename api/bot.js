@@ -201,6 +201,15 @@ bot.on("text", async (ctx) => {
 
           case REGISTRATION_STATES.STUDENT_ID:
             ctx.session.studentId = ctx.message.text;
+            const rawId = ctx.session.studentId.trim().toUpperCase();
+            const idPattern = /^[A-Z]{2}\d{1,6}\/\d{2}$/;
+
+            if (!idPattern.test(rawId)) {
+              await ctx.reply(
+                "❌ Invalid Student ID format. Example: RU0238/17"
+              );
+              return;
+            }
             ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
             console.log(
               `Set studentId: ${ctx.session.studentId}, moving to current year`
@@ -223,15 +232,6 @@ bot.on("text", async (ctx) => {
             );
             try {
               // Validate studentId format
-              const rawId = ctx.session.studentId.trim().toUpperCase();
-              const idPattern = /^[A-Z]{2}\d{1,6}\/\d{2}$/;
-
-              if (!idPattern.test(rawId)) {
-                await ctx.reply(
-                  "❌ Invalid Student ID format. Example: RU0238/17"
-                );
-                return;
-              }
 
               const user = new User({
                 telegramId: ctx.from.id,
