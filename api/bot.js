@@ -5,6 +5,9 @@ const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
 const { postToChannel } = require("../utils/channel");
 
+//global variables
+let rawId;
+
 // Debug
 console.log("BOT_TOKEN:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
 console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
@@ -201,7 +204,7 @@ bot.on("text", async (ctx) => {
 
           case REGISTRATION_STATES.STUDENT_ID:
             ctx.session.studentId = ctx.message.text;
-            const rawId = ctx.session.studentId.trim().toUpperCase();
+            rawId = ctx.session.studentId.trim().toUpperCase();
             const idPattern = /^[A-Z]{2}\d{1,6}\/\d{2}$/;
 
             if (!idPattern.test(rawId)) {
