@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
-const { extractTextFromImage, verifyStudentId } = require("../utils/ocr");
 const { postToChannel } = require("../utils/channel");
 
 // Debug
@@ -23,8 +22,6 @@ async function connectDB(uri) {
   return cached.conn;
 }
 
-// Connect to DB
-
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const bot = new Telegraf(BOT_TOKEN);
@@ -43,7 +40,6 @@ const REGISTRATION_STATES = {
   STUDENT_ID: "student_id",
   CURRENT_YEAR: "current_year",
   PHONE_NUMBER: "phone_number",
-  ID_IMAGE: "id_image",
 };
 
 // Main menu
@@ -68,7 +64,7 @@ bot.start(async (ctx) => {
   const userId = ctx.from.id;
   const user = await User.findOne({ telegramId: userId });
 
-  if (user && user.verified) {
+  if (user) {
     await ctx.reply(
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu()
@@ -105,11 +101,24 @@ bot.on("text", async (ctx) => {
           await ctx.reply("Please enter your phone number:");
           break;
         case REGISTRATION_STATES.PHONE_NUMBER:
-          ctx.session.phoneNumber = ctx.message.text;
-          ctx.session.registrationState = REGISTRATION_STATES.ID_IMAGE;
-          await ctx.reply(
-            "Please upload a clear photo of your student ID card:"
-          );
+          // Complete registration without photo verification
+          const user = new User({
+            telegramId: ctx.from.id,
+            fullName: ctx.session.fullName,
+            studentId: ctx.session.studentId,
+            currentYear: ctx.session.currentYear,
+            phoneNumber: ctx.message.text,
+            verified: true, // Set as verified without photo verification
+          });
+          await user.save();
+
+          await ctx.reply("✅ Registration successful!", mainMenu());
+
+          // Clear session data
+          delete ctx.session.registrationState;
+          delete ctx.session.fullName;
+          delete ctx.session.studentId;
+          delete ctx.session.currentYear;
           break;
       }
       return;
@@ -163,43 +172,6 @@ bot.on("text", async (ctx) => {
 // Unified photo handler
 bot.on("photo", async (ctx) => {
   try {
-    // Registration ID image
-    if (ctx.session.registrationState === REGISTRATION_STATES.ID_IMAGE) {
-      const photo = ctx.message.photo.pop();
-      const fileLink = await ctx.telegram.getFileLink(photo.file_id);
-      const extractedText = await extractTextFromImage(fileLink.href);
-      const isValid = await verifyStudentId(
-        extractedText,
-        ctx.session.studentId
-      );
-
-      if (!isValid) {
-        await ctx.reply(
-          "❌ Verification failed. The ID number on the image doesn't match what you typed.\nPlease try again."
-        );
-        return;
-      }
-
-      const user = new User({
-        telegramId: ctx.from.id,
-        fullName: ctx.session.fullName,
-        studentId: ctx.session.studentId,
-        currentYear: ctx.session.currentYear,
-        phoneNumber: ctx.session.phoneNumber,
-        idImage: photo.file_id,
-        verified: true,
-      });
-      await user.save();
-
-      await ctx.reply("✅ Registration successful!", mainMenu());
-      delete ctx.session.registrationState;
-      delete ctx.session.fullName;
-      delete ctx.session.studentId;
-      delete ctx.session.currentYear;
-      delete ctx.session.phoneNumber;
-      return;
-    }
-
     // Item reporting photo
     if (ctx.session.reporting?.step === "photo") {
       const photo = ctx.message.photo.pop();
@@ -217,6 +189,12 @@ bot.on("photo", async (ctx) => {
 
 // Report Lost / Found Items buttons
 bot.hears("📌 Report Lost Item", async (ctx) => {
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start");
+    return;
+  }
+
   ctx.session.reporting = { type: "lost", step: "item_type" };
   await ctx.reply(
     "What type of item did you lose?",
@@ -227,6 +205,12 @@ bot.hears("📌 Report Lost Item", async (ctx) => {
 });
 
 bot.hears("📦 Report Found Item", async (ctx) => {
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start");
+    return;
+  }
+
   ctx.session.reporting = { type: "found", step: "item_type" };
   await ctx.reply(
     "What type of item did you find?",
@@ -255,6 +239,12 @@ bot.hears("ℹ️ My Profile", async (ctx) => {
 
 // Search button
 bot.hears("🔍 Search Lost/Found IDs", async (ctx) => {
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start");
+    return;
+  }
+
   ctx.session.searching = true;
   await ctx.reply("Please enter the Student ID number to search for:");
 });
@@ -272,6 +262,7 @@ async function completeItemReport(ctx) {
     itemType: reporting.itemType,
     description: reporting.description,
     photo: reporting.photo,
+    studentIdNumber: user.studentId, // Add student ID to the report
   });
   await item.save();
 
@@ -279,7 +270,8 @@ async function completeItemReport(ctx) {
     reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
   }\nType: ${reporting.itemType}\nDescription: ${
     reporting.description
-  }\nReported by: ${user.fullName}`;
+  }\nReported by: ${user.fullName} (${user.studentId})`;
+
   const channelEnv =
     reporting.type === "lost"
       ? process.env.CHANNEL_LOST_ITEMS
