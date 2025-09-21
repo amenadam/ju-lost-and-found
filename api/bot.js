@@ -130,11 +130,7 @@ bot.command("reset", (ctx) => {
 // Start command
 bot.start(async (ctx) => {
   console.log(`Start command from user: ${ctx.from.id}`);
-  // Clear session
-  const id = ctx.from.id;
-  if (sessionData.has(id)) {
-    sessionData.delete(id);
-  }
+
   if (!(await checkDBConnection(ctx))) return;
 
   const userId = ctx.from.id;
