@@ -11,7 +11,7 @@ async function postToChannel(channel, message, photo = null, user = null) {
       }
       message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`;
     }
-
+    message += `join our channel \n @${process.env.CHANNEL_LOST_ITEMS}`;
     const extra = {
       parse_mode: "HTML",
     };
