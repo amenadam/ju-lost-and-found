@@ -1,4 +1,4 @@
-const { Telegraf, Markup, session } = require("telegraf");
+const { Telegraf, Markup } = require("telegraf");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const LostItem = require("../models/LostItem");
@@ -9,32 +9,12 @@ const { postToChannel } = require("../utils/channel");
 console.log("BOT_TOKEN:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
 console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 
-// Cached MongoDB connection for serverless
-let cached = global.mongoose;
-if (!cached) cached = global.mongoose = { conn: null, promise: null };
-
-async function connectDB(uri) {
-  if (cached.conn) return cached.conn;
-  if (!cached.promise) {
-    const opts = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      bufferCommands: false,
-      bufferMaxEntries: 0,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-    };
-
-    cached.promise = mongoose.connect(uri, opts).then((mongoose) => mongoose);
-  }
-  cached.conn = await cached.promise;
-  return cached.conn;
-}
-
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const bot = new Telegraf(BOT_TOKEN);
 const sessionData = new Map();
+
+// Session middleware
 bot.use((ctx, next) => {
   const id = ctx.from?.id;
   if (!id) return next();
@@ -59,28 +39,34 @@ function mainMenu() {
   ]).resize();
 }
 
-// Connect to DB with error handling
-let dbConnected = false;
-(async () => {
+// Connect to MongoDB
+async function connectDB() {
   try {
-    if (process.env.MONGODB_URI) {
-      await connectDB(process.env.MONGODB_URI);
-      console.log("✅ Connected to MongoDB");
-      dbConnected = true;
-    } else {
+    if (!process.env.MONGODB_URI) {
       console.log("❌ MONGODB_URI not set");
+      return false;
     }
+
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ Connected to MongoDB");
+    return true;
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
-    dbConnected = false;
+    return false;
   }
-})();
+}
 
 // Check if DB is connected before performing DB operations
 async function checkDBConnection(ctx) {
-  if (!dbConnected) {
-    await ctx.reply("❌ Database connection issue. Please try again later.");
-    return false;
+  if (mongoose.connection.readyState !== 1) {
+    const connected = await connectDB();
+    if (!connected) {
+      await ctx.reply("❌ Database connection issue. Please try again later.");
+      return false;
+    }
   }
   return true;
 }
@@ -191,6 +177,21 @@ bot.on("text", async (ctx) => {
       const found = await FoundItem.find({ studentIdNumber: idNumber });
       let message = `🔍 Search results for ID ${idNumber}:\n\n`;
       message += `Lost Items: ${lost.length}\nFound Items: ${found.length}`;
+
+      if (lost.length > 0) {
+        message += "\n\nLost Items:\n";
+        lost.forEach((item) => {
+          message += `- ${item.itemType}: ${item.description}\n`;
+        });
+      }
+
+      if (found.length > 0) {
+        message += "\nFound Items:\n";
+        found.forEach((item) => {
+          message += `- ${item.itemType}: ${item.description}\n`;
+        });
+      }
+
       await ctx.reply(message, mainMenu());
       ctx.session.searching = false;
       return;
@@ -337,6 +338,12 @@ async function completeItemReport(ctx) {
     await ctx.reply("❌ Failed to report item. Please try again.");
   }
 }
+
+// Error handling
+bot.catch((err, ctx) => {
+  console.error(`Error for ${ctx.updateType}:`, err);
+  ctx.reply("❌ An error occurred. Please try again later.");
+});
 
 // Vercel serverless handler
 module.exports = async (req, res) => {
