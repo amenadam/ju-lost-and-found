@@ -39,8 +39,11 @@ bot.use((ctx, next) => {
     });
   }
 
+  // Make sure we're using the data property
   ctx.session = sessionData.get(id).data;
   sessionData.get(id).lastActivity = Date.now();
+
+  console.log(`Session for ${id}: ${JSON.stringify(ctx.session)}`);
   return next();
 });
 
@@ -90,8 +93,30 @@ async function checkDBConnection(ctx) {
   return true;
 }
 
+// Debug command
+bot.command("debug", (ctx) => {
+  console.log("Debug command received");
+  ctx.reply(
+    `Bot is working! Your ID: ${ctx.from.id}, Session: ${JSON.stringify(
+      ctx.session
+    )}`
+  );
+});
+
+// Reset command
+bot.command("reset", (ctx) => {
+  // Clear session
+  const id = ctx.from.id;
+  if (sessionData.has(id)) {
+    sessionData.delete(id);
+  }
+  ctx.reply("Session reset. Use /start to begin again.");
+});
+
 // Start command
 bot.start(async (ctx) => {
+  console.log(`Start command from user: ${ctx.from.id}`);
+
   if (!(await checkDBConnection(ctx))) return;
 
   const userId = ctx.from.id;
@@ -103,8 +128,16 @@ bot.start(async (ctx) => {
       mainMenu()
     );
   } else {
+    // Clear any existing session data first
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
+
+    console.log(
+      `Starting registration for user: ${userId}, session: ${JSON.stringify(
+        ctx.session
+      )}`
+    );
+
     await ctx.reply(
       "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
         "Please register to use our services. Let's start with your full name:"
@@ -114,11 +147,17 @@ bot.start(async (ctx) => {
 
 // Unified text handler
 bot.on("text", async (ctx) => {
+  console.log(`Received text: "${ctx.message.text}" from user: ${ctx.from.id}`);
+  console.log(`Current session state: ${JSON.stringify(ctx.session)}`);
+
   try {
     if (!(await checkDBConnection(ctx))) return;
 
     // Check for registration timeout
     if (ctx.session.registrationState && ctx.session.registrationStart) {
+      console.log(
+        `Registration in progress, state: ${ctx.session.registrationState}`
+      );
       if (Date.now() - ctx.session.registrationStart > REGISTRATION_TIMEOUT) {
         await ctx.reply(
           "❌ Registration timed out. Please start again with /start"
@@ -131,50 +170,88 @@ bot.on("text", async (ctx) => {
 
     // Registration flow
     if (ctx.session.registrationState) {
-      const state = ctx.session.registrationState;
-      switch (state) {
-        case REGISTRATION_STATES.FULL_NAME:
-          ctx.session.fullName = ctx.message.text;
-          ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
-          await ctx.reply("Please enter your Student ID number:");
-          break;
-        case REGISTRATION_STATES.STUDENT_ID:
-          ctx.session.studentId = ctx.message.text;
-          ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
-          await ctx.reply("Please enter your current year (e.g., 2nd Year):");
-          break;
-        case REGISTRATION_STATES.CURRENT_YEAR:
-          ctx.session.currentYear = ctx.message.text;
-          ctx.session.registrationState = REGISTRATION_STATES.PHONE_NUMBER;
-          await ctx.reply("Please enter your phone number:");
-          break;
-        case REGISTRATION_STATES.PHONE_NUMBER:
-          // Complete registration without photo verification
-          try {
-            const user = new User({
-              telegramId: ctx.from.id,
-              fullName: ctx.session.fullName,
-              studentId: ctx.session.studentId,
-              currentYear: ctx.session.currentYear,
-              phoneNumber: ctx.message.text,
-              verified: true,
-              idImage: "not_required",
-            });
-            await user.save();
+      console.log(
+        `Processing registration step: ${ctx.session.registrationState}`
+      );
 
-            await ctx.reply("✅ Registration successful!", mainMenu());
+      try {
+        const state = ctx.session.registrationState;
+        switch (state) {
+          case REGISTRATION_STATES.FULL_NAME:
+            ctx.session.fullName = ctx.message.text;
+            ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
+            console.log(
+              `Set fullName: ${ctx.session.fullName}, moving to student ID`
+            );
+            await ctx.reply("Please enter your Student ID number:");
+            break;
 
-            // Clear session data
+          case REGISTRATION_STATES.STUDENT_ID:
+            ctx.session.studentId = ctx.message.text;
+            ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
+            console.log(
+              `Set studentId: ${ctx.session.studentId}, moving to current year`
+            );
+            await ctx.reply("Please enter your current year (e.g., 2nd Year):");
+            break;
+
+          case REGISTRATION_STATES.CURRENT_YEAR:
+            ctx.session.currentYear = ctx.message.text;
+            ctx.session.registrationState = REGISTRATION_STATES.PHONE_NUMBER;
+            console.log(
+              `Set currentYear: ${ctx.session.currentYear}, moving to phone number`
+            );
+            await ctx.reply("Please enter your phone number:");
+            break;
+
+          case REGISTRATION_STATES.PHONE_NUMBER:
+            console.log(
+              `Completing registration with phone: ${ctx.message.text}`
+            );
+            // Complete registration without photo verification
+            try {
+              const user = new User({
+                telegramId: ctx.from.id,
+                fullName: ctx.session.fullName,
+                studentId: ctx.session.studentId,
+                currentYear: ctx.session.currentYear,
+                phoneNumber: ctx.message.text,
+                verified: true,
+                idImage: "not_required",
+              });
+              await user.save();
+
+              await ctx.reply("✅ Registration successful!", mainMenu());
+
+              // Clear session data
+              delete ctx.session.registrationState;
+              delete ctx.session.registrationStart;
+              delete ctx.session.fullName;
+              delete ctx.session.studentId;
+              delete ctx.session.currentYear;
+
+              console.log(`Registration completed for user: ${ctx.from.id}`);
+            } catch (error) {
+              console.error("Registration error:", error);
+              await ctx.reply("❌ Registration failed. Please try again.");
+            }
+            break;
+
+          default:
+            console.error(`Unknown registration state: ${state}`);
+            await ctx.reply(
+              "❌ Registration error. Please start again with /start"
+            );
             delete ctx.session.registrationState;
             delete ctx.session.registrationStart;
-            delete ctx.session.fullName;
-            delete ctx.session.studentId;
-            delete ctx.session.currentYear;
-          } catch (error) {
-            console.error("Registration error:", error);
-            await ctx.reply("❌ Registration failed. Please try again.");
-          }
-          break;
+        }
+      } catch (error) {
+        console.error("Error in registration flow:", error);
+        await ctx.reply(
+          "❌ An error occurred during registration. Please try again with /start"
+        );
+        delete ctx.session.registrationState;
+        delete ctx.session.registrationStart;
       }
       return;
     }
@@ -394,6 +471,8 @@ bot.catch((err, ctx) => {
 
 // Vercel serverless handler
 module.exports = async (req, res) => {
+  console.log(`Received ${req.method} request`);
+
   if (req.method === "POST") {
     console.log("Received update:", JSON.stringify(req.body, null, 2));
     try {
@@ -403,6 +482,7 @@ module.exports = async (req, res) => {
       res.status(200).send("Error handling update");
     }
   } else {
+    console.log("GET request received");
     res.status(200).send("Telegram bot webhook is running!");
   }
 };
