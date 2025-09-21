@@ -554,17 +554,11 @@ async function completeItemReport(ctx) {
       ctx.session.reporting = null;
       return;
     }
-
-    let describeText = "Description";
-    if (reporting.type === "ID") {
-      describeText = "ID number";
-    }
-
     const message = `${
       reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
-    }\nType: ${reporting.itemType}\n${describeText}: ${
-      reporting.description
-    }\nReported by: ${user.fullName}`;
+    }\nType: ${reporting.itemType}\n${
+      reporting.type === "ID" ? "ID Number" : "Description"
+    }: ${reporting.description}\nReported by: ${user.fullName}`;
 
     const channelEnv =
       reporting.type === "lost"
