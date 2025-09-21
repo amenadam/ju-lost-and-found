@@ -1,3 +1,4 @@
 .vercel
 deploy.js
 node_modules
+.env
