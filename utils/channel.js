@@ -12,10 +12,10 @@ async function postToChannel(channel, message, photo = null, user = null) {
           text: "📩 Contact Reporter",
           url: `https://t.me/${user.username}`,
         };
-      } else if (user.phone) {
+      } else if (user.phoneNumber) {
         contactButton = {
           text: "📞 Call Reporter",
-          url: `tel:${user.phone}`,
+          url: `tel:${user.phoneNumber}`,
         };
       } else {
         contactButton = {
