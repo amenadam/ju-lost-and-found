@@ -13,9 +13,14 @@ async function postToChannel(channel, message, photo = null, user = null) {
           url: `https://t.me/${user.username}`,
         };
       } else if (user.phoneNumber) {
+        let phone = user.phoneNumber;
+        if (phone.startsWith("0")) {
+          phone = "+251" + phone.slice(1);
+        }
+
         contactButton = {
           text: "📞 Call Reporter",
-          url: `tel:${user.phoneNumber}`,
+          url: `tel:${phone}`,
         };
       } else {
         contactButton = {
