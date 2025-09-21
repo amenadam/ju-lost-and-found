@@ -494,41 +494,13 @@ async function completeItemReport(ctx) {
       reporting.description
     }\nReported by: ${user.fullName} (${user.studentId})`;
 
-    let contactButton;
-
-    if (user.username) {
-      // If user has Telegram username
-      contactButton = {
-        text: "📩 Contact Reporter",
-        url: `https://t.me/${user.username}`,
-      };
-    } else if (user.phone) {
-      // If user has phone number instead
-      contactButton = {
-        text: `📞 Call Reporter`,
-        url: `tel:${user.phone}`, // phone link
-      };
-    } else {
-      // Fallback: no contact info
-      contactButton = {
-        text: "❌ No Contact Info",
-        callback_data: "no_contact",
-      };
-    }
-
-    await bot.telegram.sendMessage(CHANNEL_ID, message, {
-      reply_markup: {
-        inline_keyboard: [[contactButton]],
-      },
-    });
-
     const channelEnv =
       reporting.type === "lost"
         ? process.env.CHANNEL_LOST_ITEMS
         : process.env.CHANNEL_FOUND_ITEMS;
 
     if (channelEnv) {
-      await postToChannel(channelEnv, message, reporting.photo);
+      await postToChannel(channelEnv, message, reporting.photo, user);
     }
 
     await ctx.reply(
