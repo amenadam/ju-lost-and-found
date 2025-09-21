@@ -527,7 +527,7 @@ async function completeItemReport(ctx) {
       await postToChannel(channelEnv, message, reporting.photo, user);
     }
 
-    if (reporting.itemType === "ID") {
+    if (reporting.itemType === "ID" && reporting.type === "lost") {
       const whoseUser = await User.findOne({
         studentId: reporting.description.toUpperCase(),
       });
