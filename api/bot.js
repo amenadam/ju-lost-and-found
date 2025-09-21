@@ -69,7 +69,8 @@ bot.use((ctx, next) => {
 function mainMenu() {
   return Markup.keyboard([
     ["📌 Report Lost Item", "📦 Report Found Item"],
-    ["🔍 Search Lost/Found IDs", "ℹ️ My Profile"],
+    //["🔍 Search Lost/Found IDs"],
+    ["ℹ️ My Profile"],
   ]).resize();
 }
 
