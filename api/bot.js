@@ -96,6 +96,11 @@ async function checkDBConnection(ctx) {
     const connected = await connectDB();
     if (!connected) {
       await ctx.reply("❌ Database connection issue. Please try again later.");
+      // Clear session
+      const id = ctx.from.id;
+      if (sessionData.has(id)) {
+        sessionData.delete(id);
+      }
       return false;
     }
   }
@@ -125,7 +130,11 @@ bot.command("reset", (ctx) => {
 // Start command
 bot.start(async (ctx) => {
   console.log(`Start command from user: ${ctx.from.id}`);
-
+  // Clear session
+  const id = ctx.from.id;
+  if (sessionData.has(id)) {
+    sessionData.delete(id);
+  }
   if (!(await checkDBConnection(ctx))) return;
 
   const userId = ctx.from.id;
