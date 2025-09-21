@@ -13,6 +13,16 @@ console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const bot = new Telegraf(BOT_TOKEN);
 
+// Registration flow states
+const REGISTRATION_STATES = {
+  NONE: "none",
+  FULL_NAME: "full_name",
+  STUDENT_ID: "student_id",
+  CURRENT_YEAR: "current_year",
+  PHONE_NUMBER: "phone_number",
+};
+const REGISTRATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
 // Session management with expiration
 const sessionData = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
@@ -34,7 +44,12 @@ bot.use((ctx, next) => {
 
   if (!sessionData.has(id)) {
     sessionData.set(id, {
-      data: {},
+      data: {
+        registrationState: REGISTRATION_STATES.NONE,
+        registrationStart: null,
+        reporting: null,
+        searching: false,
+      },
       lastActivity: Date.now(),
     });
   }
@@ -46,15 +61,6 @@ bot.use((ctx, next) => {
   console.log(`Session for ${id}: ${JSON.stringify(ctx.session)}`);
   return next();
 });
-
-// Registration flow states
-const REGISTRATION_STATES = {
-  FULL_NAME: "full_name",
-  STUDENT_ID: "student_id",
-  CURRENT_YEAR: "current_year",
-  PHONE_NUMBER: "phone_number",
-};
-const REGISTRATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 // Main menu
 function mainMenu() {
@@ -154,7 +160,11 @@ bot.on("text", async (ctx) => {
     if (!(await checkDBConnection(ctx))) return;
 
     // Check for registration timeout
-    if (ctx.session.registrationState && ctx.session.registrationStart) {
+    if (
+      ctx.session.registrationState &&
+      ctx.session.registrationState !== REGISTRATION_STATES.NONE &&
+      ctx.session.registrationStart
+    ) {
       console.log(
         `Registration in progress, state: ${ctx.session.registrationState}`
       );
@@ -162,14 +172,17 @@ bot.on("text", async (ctx) => {
         await ctx.reply(
           "❌ Registration timed out. Please start again with /start"
         );
-        delete ctx.session.registrationState;
-        delete ctx.session.registrationStart;
+        ctx.session.registrationState = REGISTRATION_STATES.NONE;
+        ctx.session.registrationStart = null;
         return;
       }
     }
 
     // Registration flow
-    if (ctx.session.registrationState) {
+    if (
+      ctx.session.registrationState &&
+      ctx.session.registrationState !== REGISTRATION_STATES.NONE
+    ) {
       console.log(
         `Processing registration step: ${ctx.session.registrationState}`
       );
@@ -224,8 +237,8 @@ bot.on("text", async (ctx) => {
               await ctx.reply("✅ Registration successful!", mainMenu());
 
               // Clear session data
-              delete ctx.session.registrationState;
-              delete ctx.session.registrationStart;
+              ctx.session.registrationState = REGISTRATION_STATES.NONE;
+              ctx.session.registrationStart = null;
               delete ctx.session.fullName;
               delete ctx.session.studentId;
               delete ctx.session.currentYear;
@@ -242,70 +255,49 @@ bot.on("text", async (ctx) => {
             await ctx.reply(
               "❌ Registration error. Please start again with /start"
             );
-            delete ctx.session.registrationState;
-            delete ctx.session.registrationStart;
+            ctx.session.registrationState = REGISTRATION_STATES.NONE;
+            ctx.session.registrationStart = null;
         }
       } catch (error) {
         console.error("Error in registration flow:", error);
         await ctx.reply(
           "❌ An error occurred during registration. Please try again with /start"
         );
-        delete ctx.session.registrationState;
-        delete ctx.session.registrationStart;
+        ctx.session.registrationState = REGISTRATION_STATES.NONE;
+        ctx.session.registrationStart = null;
       }
       return;
     }
 
-    // Item reporting flow
-    if (ctx.session.reporting?.step) {
-      const step = ctx.session.reporting.step;
-      if (step === "item_type") {
-        const itemType = ctx.message.text;
-        if (["ID", "Phone", "Bag", "Other"].includes(itemType)) {
-          ctx.session.reporting.itemType = itemType;
-          ctx.session.reporting.step = "description";
-          await ctx.reply("Please describe the item:");
+    // Handle menu options
+    switch (ctx.message.text) {
+      case "📌 Report Lost Item":
+        await handleReportLostItem(ctx);
+        break;
+      case "📦 Report Found Item":
+        await handleReportFoundItem(ctx);
+        break;
+      case "🔍 Search Lost/Found IDs":
+        await handleSearchIDs(ctx);
+        break;
+      case "ℹ️ My Profile":
+        await handleMyProfile(ctx);
+        break;
+      default:
+        // Item reporting flow
+        if (ctx.session.reporting?.step) {
+          await handleItemReporting(ctx);
+          return;
         }
-      } else if (step === "description") {
-        ctx.session.reporting.description = ctx.message.text;
-        ctx.session.reporting.step = "photo";
-        await ctx.reply(
-          'Please upload a photo of the item (or send "skip" to continue without photo):'
-        );
-      } else if (
-        step === "photo" &&
-        ctx.message.text?.toLowerCase() === "skip"
-      ) {
-        await completeItemReport(ctx);
-      }
-      return;
-    }
 
-    // Search functionality
-    if (ctx.session.searching) {
-      const idNumber = ctx.message.text;
-      const lost = await LostItem.find({ studentIdNumber: idNumber });
-      const found = await FoundItem.find({ studentIdNumber: idNumber });
-      let message = `🔍 Search results for ID ${idNumber}:\n\n`;
-      message += `Lost Items: ${lost.length}\nFound Items: ${found.length}`;
+        // Search functionality
+        if (ctx.session.searching) {
+          await handleSearchFunctionality(ctx);
+          return;
+        }
 
-      if (lost.length > 0) {
-        message += "\n\nLost Items:\n";
-        lost.forEach((item) => {
-          message += `- ${item.itemType}: ${item.description}\n`;
-        });
-      }
-
-      if (found.length > 0) {
-        message += "\nFound Items:\n";
-        found.forEach((item) => {
-          message += `- ${item.itemType}: ${item.description}\n`;
-        });
-      }
-
-      await ctx.reply(message, mainMenu());
-      ctx.session.searching = false;
-      return;
+        // If none of the above, show main menu
+        await ctx.reply("Please select an option from the menu:", mainMenu());
     }
   } catch (err) {
     console.error(err);
@@ -336,8 +328,8 @@ bot.on("photo", async (ctx) => {
   }
 });
 
-// Report Lost / Found Items buttons
-bot.hears("📌 Report Lost Item", async (ctx) => {
+// Handle Report Lost Item
+async function handleReportLostItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
@@ -353,9 +345,10 @@ bot.hears("📌 Report Lost Item", async (ctx) => {
       .resize()
       .oneTime()
   );
-});
+}
 
-bot.hears("📦 Report Found Item", async (ctx) => {
+// Handle Report Found Item
+async function handleReportFoundItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
@@ -371,10 +364,10 @@ bot.hears("📦 Report Found Item", async (ctx) => {
       .resize()
       .oneTime()
   );
-});
+}
 
-// My Profile button
-bot.hears("ℹ️ My Profile", async (ctx) => {
+// Handle My Profile
+async function handleMyProfile(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
@@ -390,10 +383,10 @@ bot.hears("ℹ️ My Profile", async (ctx) => {
     }`,
     mainMenu()
   );
-});
+}
 
-// Search button
-bot.hears("🔍 Search Lost/Found IDs", async (ctx) => {
+// Handle Search IDs
+async function handleSearchIDs(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
@@ -404,7 +397,54 @@ bot.hears("🔍 Search Lost/Found IDs", async (ctx) => {
 
   ctx.session.searching = true;
   await ctx.reply("Please enter the Student ID number to search for:");
-});
+}
+
+// Handle Item Reporting
+async function handleItemReporting(ctx) {
+  const step = ctx.session.reporting.step;
+  if (step === "item_type") {
+    const itemType = ctx.message.text;
+    if (["ID", "Phone", "Bag", "Other"].includes(itemType)) {
+      ctx.session.reporting.itemType = itemType;
+      ctx.session.reporting.step = "description";
+      await ctx.reply("Please describe the item:");
+    }
+  } else if (step === "description") {
+    ctx.session.reporting.description = ctx.message.text;
+    ctx.session.reporting.step = "photo";
+    await ctx.reply(
+      'Please upload a photo of the item (or send "skip" to continue without photo):'
+    );
+  } else if (step === "photo" && ctx.message.text?.toLowerCase() === "skip") {
+    await completeItemReport(ctx);
+  }
+}
+
+// Handle Search Functionality
+async function handleSearchFunctionality(ctx) {
+  const idNumber = ctx.message.text;
+  const lost = await LostItem.find({ studentIdNumber: idNumber });
+  const found = await FoundItem.find({ studentIdNumber: idNumber });
+  let message = `🔍 Search results for ID ${idNumber}:\n\n`;
+  message += `Lost Items: ${lost.length}\nFound Items: ${found.length}`;
+
+  if (lost.length > 0) {
+    message += "\n\nLost Items:\n";
+    lost.forEach((item) => {
+      message += `- ${item.itemType}: ${item.description}\n`;
+    });
+  }
+
+  if (found.length > 0) {
+    message += "\nFound Items:\n";
+    found.forEach((item) => {
+      message += `- ${item.itemType}: ${item.description}\n`;
+    });
+  }
+
+  await ctx.reply(message, mainMenu());
+  ctx.session.searching = false;
+}
 
 // Helper: Complete item report
 async function completeItemReport(ctx) {
@@ -419,7 +459,7 @@ async function completeItemReport(ctx) {
       telegramId: ctx.from.id,
       itemType: reporting.itemType,
       description: reporting.description,
-      photo: reporting.photo,
+      photo: reporting.photo || null,
       studentIdNumber: user.studentId,
     });
     await item.save();
@@ -443,7 +483,7 @@ async function completeItemReport(ctx) {
       `✅ Your ${reporting.type} item has been reported!`,
       mainMenu()
     );
-    delete ctx.session.reporting;
+    ctx.session.reporting = null;
   } catch (error) {
     console.error("Error completing item report:", error);
     await ctx.reply("❌ Failed to report item. Please try again.");
