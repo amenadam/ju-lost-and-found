@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    username: {
+      type: String,
+      default: null,
+    },
     idImage: {
       type: String, // Make this optional
     },

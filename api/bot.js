@@ -229,6 +229,7 @@ bot.on("text", async (ctx) => {
                 studentId: ctx.session.studentId,
                 currentYear: ctx.session.currentYear,
                 phoneNumber: ctx.message.text,
+                username: ctx.from.username,
                 verified: true,
                 idImage: "not_required",
               });
@@ -469,6 +470,34 @@ async function completeItemReport(ctx) {
     }\nType: ${reporting.itemType}\nDescription: ${
       reporting.description
     }\nReported by: ${user.fullName} (${user.studentId})`;
+
+    let contactButton;
+
+    if (user.username) {
+      // If user has Telegram username
+      contactButton = {
+        text: "📩 Contact Reporter",
+        url: `https://t.me/${user.username}`,
+      };
+    } else if (user.phone) {
+      // If user has phone number instead
+      contactButton = {
+        text: `📞 Call Reporter`,
+        url: `tel:${user.phone}`, // phone link
+      };
+    } else {
+      // Fallback: no contact info
+      contactButton = {
+        text: "❌ No Contact Info",
+        callback_data: "no_contact",
+      };
+    }
+
+    await bot.telegram.sendMessage(CHANNEL_ID, message, {
+      reply_markup: {
+        inline_keyboard: [[contactButton]],
+      },
+    });
 
     const channelEnv =
       reporting.type === "lost"
