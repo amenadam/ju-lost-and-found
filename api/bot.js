@@ -137,6 +137,38 @@ bot.start(async (ctx) => {
   const userId = ctx.from.id;
   const user = await User.findOne({ telegramId: userId });
 
+  const REQUIRED_CHANNEL = process.env.CHANNEL_LOST_ITEMS;
+
+  try {
+    const member = await ctx.telegram.getChatMember(REQUIRED_CHANNEL, userId);
+
+    if (
+      member.status === "left" ||
+      member.status === "kicked" ||
+      !member.status
+    ) {
+      // User is not a member
+      await ctx.reply(
+        `❌ You must join our channel to use this bot:\n${REQUIRED_CHANNEL}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "Join Channel ✅",
+                  url: `https://t.me/${REQUIRED_CHANNEL.replace("@", "")}`,
+                },
+              ],
+            ],
+          },
+        }
+      );
+      return;
+    }
+  } catch (err) {
+    console.error("Error checking channel membership:", err);
+  }
+
   if (user) {
     await ctx.reply(
       `Welcome back, ${user.fullName}! How can I help you today?`,
