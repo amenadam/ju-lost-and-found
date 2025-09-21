@@ -12,14 +12,35 @@ console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const bot = new Telegraf(BOT_TOKEN);
+
+// Session management with expiration
 const sessionData = new Map();
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+// Clean up old sessions
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of sessionData.entries()) {
+    if (now - value.lastActivity > SESSION_TIMEOUT) {
+      sessionData.delete(key);
+    }
+  }
+}, 5 * 60 * 1000); // Run every 5 minutes
 
 // Session middleware
 bot.use((ctx, next) => {
   const id = ctx.from?.id;
   if (!id) return next();
-  if (!sessionData.has(id)) sessionData.set(id, {});
-  ctx.session = sessionData.get(id);
+
+  if (!sessionData.has(id)) {
+    sessionData.set(id, {
+      data: {},
+      lastActivity: Date.now(),
+    });
+  }
+
+  ctx.session = sessionData.get(id).data;
+  sessionData.get(id).lastActivity = Date.now();
   return next();
 });
 
@@ -30,6 +51,7 @@ const REGISTRATION_STATES = {
   CURRENT_YEAR: "current_year",
   PHONE_NUMBER: "phone_number",
 };
+const REGISTRATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 // Main menu
 function mainMenu() {
@@ -47,10 +69,7 @@ async function connectDB() {
       return false;
     }
 
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ Connected to MongoDB");
     return true;
   } catch (err) {
@@ -85,6 +104,7 @@ bot.start(async (ctx) => {
     );
   } else {
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
+    ctx.session.registrationStart = Date.now();
     await ctx.reply(
       "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
         "Please register to use our services. Let's start with your full name:"
@@ -96,6 +116,18 @@ bot.start(async (ctx) => {
 bot.on("text", async (ctx) => {
   try {
     if (!(await checkDBConnection(ctx))) return;
+
+    // Check for registration timeout
+    if (ctx.session.registrationState && ctx.session.registrationStart) {
+      if (Date.now() - ctx.session.registrationStart > REGISTRATION_TIMEOUT) {
+        await ctx.reply(
+          "❌ Registration timed out. Please start again with /start"
+        );
+        delete ctx.session.registrationState;
+        delete ctx.session.registrationStart;
+        return;
+      }
+    }
 
     // Registration flow
     if (ctx.session.registrationState) {
@@ -134,6 +166,7 @@ bot.on("text", async (ctx) => {
 
             // Clear session data
             delete ctx.session.registrationState;
+            delete ctx.session.registrationStart;
             delete ctx.session.fullName;
             delete ctx.session.studentId;
             delete ctx.session.currentYear;
@@ -340,10 +373,23 @@ async function completeItemReport(ctx) {
   }
 }
 
-// Error handling
+// Enhanced error handling
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+  process.exit(1);
+});
+
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply("❌ An error occurred. Please try again later.");
+  try {
+    ctx.reply("❌ An error occurred. Please try again later.");
+  } catch (e) {
+    console.error("Failed to send error message:", e);
+  }
 });
 
 // Vercel serverless handler
