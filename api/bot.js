@@ -336,6 +336,10 @@ async function handleReportLostItem(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
     return;
   }
 
@@ -355,6 +359,10 @@ async function handleReportFoundItem(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
     return;
   }
 
@@ -374,6 +382,10 @@ async function handleMyProfile(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start", mainMenu());
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
     return;
   }
   await ctx.reply(
@@ -393,6 +405,10 @@ async function handleSearchIDs(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
     return;
   }
 
@@ -451,7 +467,14 @@ async function handleSearchFunctionality(ctx) {
 async function completeItemReport(ctx) {
   const { reporting } = ctx.session;
   const user = await User.findOne({ telegramId: ctx.from.id });
-  if (!user) return ctx.reply("Please register first using /start");
+  if (!user) {
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
+    ctx.reply("Please register first using /start");
+    return;
+  }
 
   try {
     const ItemModel = reporting.type === "lost" ? LostItem : FoundItem;
