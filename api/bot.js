@@ -221,12 +221,22 @@ bot.on("text", async (ctx) => {
             console.log(
               `Completing registration with phone: ${ctx.message.text}`
             );
-            // Complete registration without photo verification
             try {
+              // Validate studentId format
+              const rawId = ctx.session.studentId.trim().toUpperCase();
+              const idPattern = /^[A-Z]{2}\d{1,6}\/\d{2}$/;
+
+              if (!idPattern.test(rawId)) {
+                await ctx.reply(
+                  "❌ Invalid Student ID format. Example: RU0238/17"
+                );
+                return;
+              }
+
               const user = new User({
                 telegramId: ctx.from.id,
                 fullName: ctx.session.fullName,
-                studentId: ctx.session.studentId,
+                studentId: rawId,
                 currentYear: ctx.session.currentYear,
                 phoneNumber: ctx.message.text,
                 username: ctx.from.username,
@@ -249,6 +259,7 @@ bot.on("text", async (ctx) => {
               console.error("Registration error:", error);
               await ctx.reply("❌ Registration failed. Please try again.");
             }
+
             break;
 
           default:
@@ -492,7 +503,7 @@ async function completeItemReport(ctx) {
       reporting.type === "lost" ? "🚨 LOST ITEM" : "🎉 FOUND ITEM"
     }\nType: ${reporting.itemType}\nDescription: ${
       reporting.description
-    }\nReported by: ${user.fullName} (${user.studentId})`;
+    }\nReported by: ${user.fullName}`;
 
     const channelEnv =
       reporting.type === "lost"
