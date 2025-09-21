@@ -24,7 +24,6 @@ async function connectDB(uri) {
 }
 
 // Connect to DB
-await connectDB(process.env.MONGODB_URI);
 
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -47,6 +46,15 @@ function mainMenu() {
     ["🔍 Search Lost/Found IDs", "ℹ️ My Profile"],
   ]).resize();
 }
+
+(async () => {
+  try {
+    await connectDB(process.env.MONGODB_URI);
+    console.log("✅ Connected to MongoDB");
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err);
+  }
+})();
 
 // Start command
 bot.start(async (ctx) => {
