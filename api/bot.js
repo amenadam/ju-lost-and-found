@@ -126,6 +126,7 @@ bot.on("text", async (ctx) => {
               currentYear: ctx.session.currentYear,
               phoneNumber: ctx.message.text,
               verified: true,
+              idImage: "not_required",
             });
             await user.save();
 
