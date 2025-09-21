@@ -24,8 +24,8 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
   idImage: {
-    type: String, // URL or file ID
-    required: true,
+    type: String,
+    required: false,
   },
   verified: {
     type: Boolean,
