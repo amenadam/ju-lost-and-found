@@ -208,6 +208,7 @@ bot.on("text", async (ctx) => {
               await ctx.reply(
                 "❌ Invalid Student ID format. Example: RU0238/17"
               );
+              ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
               return;
             }
             ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
