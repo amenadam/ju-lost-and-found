@@ -236,10 +236,7 @@ bot.action("joined_check", async (ctx) => {
         await ctx.reply(
           "✅ Channel membership verified! Please click the button below to start your registration:",
           Markup.inlineKeyboard([
-            Markup.button.callback(
-              "📝 Start Registration",
-              "start_registration"
-            ),
+            Markup.button.callback("📝 Continue", "start_registration"),
           ])
         );
       }
@@ -280,10 +277,10 @@ bot.action("start_registration", async (ctx) => {
 
     // Edit the message to show registration is starting
     try {
-      await ctx.editMessageText("📝 Starting registration process...");
+      await ctx.editMessageText("📝 Tap /start please!");
     } catch (editError) {
       // If editing fails, send a new message
-      await ctx.reply("📝 Starting registration process...");
+      await ctx.reply("📝 Tap /start please!");
     }
 
     const user = await User.findOne({ telegramId: userId });
