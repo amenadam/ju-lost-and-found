@@ -263,6 +263,26 @@ bot.action("start_registration", async (ctx) => {
   try {
     await ctx.answerCbQuery();
 
+    // Clear any existing session data first
+    const userId = ctx.from.id;
+    if (sessionData.has(userId)) {
+      sessionData.delete(userId);
+    }
+
+    // Create a fresh session
+    sessionData.set(userId, {
+      data: {
+        registrationState: REGISTRATION_STATES.FULL_NAME,
+        registrationStart: Date.now(),
+        reporting: null,
+        searching: false,
+      },
+      lastActivity: Date.now(),
+    });
+
+    // Update ctx.session with the new session data
+    ctx.session = sessionData.get(userId).data;
+
     // Edit the message to show registration is starting
     try {
       await ctx.editMessageText("📝 Starting registration process...");
@@ -271,16 +291,19 @@ bot.action("start_registration", async (ctx) => {
       await ctx.reply("📝 Starting registration process...");
     }
 
-    const user = await User.findOne({ telegramId: ctx.from.id });
+    const user = await User.findOne({ telegramId: userId });
     if (user) {
       await ctx.reply(
         `Welcome back, ${user.fullName}! How can I help you today?`,
         mainMenu()
       );
     } else {
-      // Start registration process
-      ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
-      ctx.session.registrationStart = Date.now();
+      // Start registration process with proper session setup
+      console.log(
+        `Starting registration for user: ${userId}, session: ${JSON.stringify(
+          ctx.session
+        )}`
+      );
 
       await ctx.reply(
         "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
