@@ -226,18 +226,24 @@ bot.action("joined_check", async (ctx) => {
       member.status === "creator"
     ) {
       await ctx.answerCbQuery("✅ Membership confirmed!");
-      await ctx.deleteMessage(); // Remove the join message
 
-      // Check if user exists and either show main menu or start registration
+      try {
+        await ctx.editMessageText(
+          "✅ Channel membership verified! Please continue with your registration."
+        );
+      } catch (editError) {
+        await ctx.reply(
+          "✅ Channel membership verified! Please continue with your registration."
+        );
+      }
+
       const user = await User.findOne({ telegramId: userId });
       if (user) {
-        console.log(user.fullName);
         await ctx.reply(
           `Welcome back, ${user.fullName}! How can I help you today?`,
           mainMenu()
         );
       } else {
-        // Start registration process
         ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
         ctx.session.registrationStart = Date.now();
 
@@ -256,7 +262,6 @@ bot.action("joined_check", async (ctx) => {
     await ctx.answerCbQuery("❌ Error verifying membership. Please try again.");
   }
 });
-
 // Unified text handler
 bot.on("text", async (ctx) => {
   console.log(`Received text: "${ctx.message.text}" from user: ${ctx.from.id}`);
