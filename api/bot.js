@@ -154,16 +154,10 @@ bot.start(async (ctx) => {
     ) {
       // User is not a member
       await ctx.reply(
-        `❌ You must join our channel to use this bot:\n${REQUIRED_CHANNEL}`,
+        `❌ You must join our channel to use this bot:\n\n${REQUIRED_CHANNEL}`,
         {
           reply_markup: {
             inline_keyboard: [
-              [
-                {
-                  text: "Join Channel 📢",
-                  url: `https://t.me/${REQUIRED_CHANNEL.replace("@", "")}`,
-                },
-              ],
               [
                 {
                   text: "✅ I've Joined",
