@@ -231,6 +231,7 @@ bot.action("joined_check", async (ctx) => {
       // Check if user exists and either show main menu or start registration
       const user = await User.findOne({ telegramId: userId });
       if (user) {
+        console.log(user.fullName);
         await ctx.reply(
           `Welcome back, ${user.fullName}! How can I help you today?`,
           mainMenu()
