@@ -229,27 +229,23 @@ bot.action("joined_check", async (ctx) => {
 
       try {
         await ctx.editMessageText(
-          "✅ Channel membership verified! Please continue with your registration."
+          "✅ Channel membership verified! Please click the button below to start your registration:",
+          Markup.inlineKeyboard([
+            Markup.button.callback(
+              "📝 Start Registration",
+              "start_registration"
+            ),
+          ])
         );
       } catch (editError) {
         await ctx.reply(
-          "✅ Channel membership verified! Please continue with your registration."
-        );
-      }
-
-      const user = await User.findOne({ telegramId: userId });
-      if (user) {
-        await ctx.reply(
-          `Welcome back, ${user.fullName}! How can I help you today?`,
-          mainMenu()
-        );
-      } else {
-        ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
-        ctx.session.registrationStart = Date.now();
-
-        await ctx.reply(
-          "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
-            "Please register to use our services. Let's start with your full name:"
+          "✅ Channel membership verified! Please click the button below to start your registration:",
+          Markup.inlineKeyboard([
+            Markup.button.callback(
+              "📝 Start Registration",
+              "start_registration"
+            ),
+          ])
         );
       }
     } else {
@@ -260,6 +256,40 @@ bot.action("joined_check", async (ctx) => {
   } catch (err) {
     console.error("Error verifying joined_check:", err);
     await ctx.answerCbQuery("❌ Error verifying membership. Please try again.");
+  }
+});
+
+bot.action("start_registration", async (ctx) => {
+  try {
+    await ctx.answerCbQuery();
+
+    // Edit the message to show registration is starting
+    try {
+      await ctx.editMessageText("📝 Starting registration process...");
+    } catch (editError) {
+      // If editing fails, send a new message
+      await ctx.reply("📝 Starting registration process...");
+    }
+
+    const user = await User.findOne({ telegramId: ctx.from.id });
+    if (user) {
+      await ctx.reply(
+        `Welcome back, ${user.fullName}! How can I help you today?`,
+        mainMenu()
+      );
+    } else {
+      // Start registration process
+      ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
+      ctx.session.registrationStart = Date.now();
+
+      await ctx.reply(
+        "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
+          "Please register to use our services. Let's start with your full name:"
+      );
+    }
+  } catch (err) {
+    console.error("Error starting registration:", err);
+    await ctx.reply("❌ Error starting registration. Please try /start again.");
   }
 });
 // Unified text handler
