@@ -351,12 +351,15 @@ bot.on("text", async (ctx) => {
         }
 
         // If none of the above, show main menu
-        await ctx.reply("Please select an option from the menu:", mainMenu());
+        await ctx.reply(
+          "Please select an option from the menu: \ntap /reset if bot not working properly",
+          mainMenu()
+        );
     }
   } catch (err) {
     console.error(err);
     await ctx.reply(
-      "❌ An error occurred. Please try again later.",
+      "❌ An error occurred. Please tap /reset and try again later. ",
       mainMenu()
     );
   }
@@ -483,7 +486,7 @@ async function handleItemReporting(ctx) {
     if (["ID"].includes(itemType)) {
       ctx.session.reporting.itemType = itemType;
       ctx.session.reporting.step = "description";
-      await ctx.reply("Please enter id no.:");
+      await ctx.reply("Please enter ID no.:");
     }
   } else if (step === "description") {
     ctx.session.reporting.description = ctx.message.text;
@@ -550,7 +553,7 @@ async function completeItemReport(ctx) {
       reporting.itemType === "ID" &&
       reporting.description.toUpperCase() === user.studentId.toUpperCase()
     ) {
-      ctx.reply("what?, you found your own ID😂", mainMenu());
+      ctx.reply("Wait?, you found your own ID😂", mainMenu());
       ctx.session.reporting = null;
       return;
     }
