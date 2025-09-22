@@ -144,6 +144,7 @@ bot.start(async (ctx) => {
   const REQUIRED_CHANNEL = process.env.CHANNEL_LOST_ITEMS;
 
   try {
+    const userId = ctx.from.id;
     const member = await ctx.telegram.getChatMember(REQUIRED_CHANNEL, userId);
 
     if (
@@ -159,6 +160,12 @@ bot.start(async (ctx) => {
             inline_keyboard: [
               [
                 {
+                  text: "Join Channel 📢",
+                  url: `https://t.me/${REQUIRED_CHANNEL.replace("@", "")}`,
+                },
+              ],
+              [
+                {
                   text: "✅ Joined",
                   callback_data: "joined_check",
                 },
@@ -167,10 +174,12 @@ bot.start(async (ctx) => {
           },
         }
       );
-      return;
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("Error checking channel membership:", err);
+    return false;
   }
 
   if (user) {
