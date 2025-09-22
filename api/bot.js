@@ -282,26 +282,6 @@ bot.action("start_registration", async (ctx) => {
       // If editing fails, send a new message
       await ctx.reply("📝 Tap /start please!");
     }
-
-    const user = await User.findOne({ telegramId: userId });
-    if (user) {
-      await ctx.reply(
-        `Welcome back, ${user.fullName}! How can I help you today?`,
-        mainMenu()
-      );
-    } else {
-      // Start registration process with proper session setup
-      console.log(
-        `Starting registration for user: ${userId}, session: ${JSON.stringify(
-          ctx.session
-        )}`
-      );
-
-      await ctx.reply(
-        "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
-          "Please register to use our services. Let's start with your full name:"
-      );
-    }
   } catch (err) {
     console.error("Error starting registration:", err);
     await ctx.reply("❌ Error starting registration. Please try /start again.");
