@@ -74,6 +74,10 @@ function mainMenu() {
   ]).resize();
 }
 
+function skipMenu() {
+  return Markup.keyboard([["skip"]]).resize();
+}
+
 // Connect to MongoDB
 async function connectDB() {
   try {
@@ -492,7 +496,8 @@ async function handleItemReporting(ctx) {
     ctx.session.reporting.description = ctx.message.text;
     ctx.session.reporting.step = "photo";
     await ctx.reply(
-      'Please upload a photo of the item (or send "skip" to continue without photo):'
+      'Please upload a photo of the item (or send "skip" to continue without photo):',
+      skipMenu()
     );
   } else if (step === "photo" && ctx.message.text?.toLowerCase() === "skip") {
     await completeItemReport(ctx);
