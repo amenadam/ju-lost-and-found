@@ -142,9 +142,9 @@ bot.start(async (ctx) => {
   const user = await User.findOne({ telegramId: userId });
 
   const REQUIRED_CHANNEL = process.env.CHANNEL_LOST_ITEMS;
+  ctx.session.requiredChannel = REQUIRED_CHANNEL;
 
   try {
-    const userId = ctx.from.id;
     const member = await ctx.telegram.getChatMember(REQUIRED_CHANNEL, userId);
 
     if (
@@ -166,7 +166,7 @@ bot.start(async (ctx) => {
               ],
               [
                 {
-                  text: "✅ Joined",
+                  text: "✅ I've Joined",
                   callback_data: "joined_check",
                 },
               ],
@@ -174,21 +174,22 @@ bot.start(async (ctx) => {
           },
         }
       );
-      return false;
+      return; // Just return, don't return false
     }
-    return true;
   } catch (err) {
     console.error("Error checking channel membership:", err);
-    return false;
+    await ctx.reply("❌ Error checking channel membership. Please try again.");
+    return;
   }
 
+  // If user is already registered
   if (user) {
     await ctx.reply(
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu()
     );
   } else {
-    // Clear any existing session data first
+    // Start registration process
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
 
@@ -208,6 +209,16 @@ bot.start(async (ctx) => {
 bot.action("joined_check", async (ctx) => {
   try {
     const userId = ctx.from.id;
+    const REQUIRED_CHANNEL =
+      ctx.session.requiredChannel || process.env.CHANNEL_LOST_ITEMS;
+
+    if (!REQUIRED_CHANNEL) {
+      await ctx.answerCbQuery(
+        "❌ Channel not configured. Please contact admin."
+      );
+      return;
+    }
+
     const member = await ctx.telegram.getChatMember(REQUIRED_CHANNEL, userId);
 
     if (
@@ -215,10 +226,26 @@ bot.action("joined_check", async (ctx) => {
       member.status === "administrator" ||
       member.status === "creator"
     ) {
-      // Restart bot (simulate /start)
       await ctx.answerCbQuery("✅ Membership confirmed!");
-      await ctx.deleteMessage(); // remove old join message
-      return bot.commands.get("start").fn(ctx); // Call /start handler directly
+      await ctx.deleteMessage(); // Remove the join message
+
+      // Check if user exists and either show main menu or start registration
+      const user = await User.findOne({ telegramId: userId });
+      if (user) {
+        await ctx.reply(
+          `Welcome back, ${user.fullName}! How can I help you today?`,
+          mainMenu()
+        );
+      } else {
+        // Start registration process
+        ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
+        ctx.session.registrationStart = Date.now();
+
+        await ctx.reply(
+          "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
+            "Please register to use our services. Let's start with your full name:"
+        );
+      }
     } else {
       await ctx.answerCbQuery("❌ You still need to join the channel.", {
         show_alert: true,
@@ -226,6 +253,7 @@ bot.action("joined_check", async (ctx) => {
     }
   } catch (err) {
     console.error("Error verifying joined_check:", err);
+    await ctx.answerCbQuery("❌ Error verifying membership. Please try again.");
   }
 });
 
