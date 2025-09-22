@@ -141,11 +141,6 @@ bot.start(async (ctx) => {
   const userId = ctx.from.id;
   const user = await User.findOne({ telegramId: userId });
 
-  const id = ctx.from.id;
-  if (sessionData.has(id)) {
-    sessionData.delete(id);
-  }
-
   const REQUIRED_CHANNEL = process.env.CHANNEL_LOST_ITEMS;
   ctx.session.requiredChannel = REQUIRED_CHANNEL;
 
