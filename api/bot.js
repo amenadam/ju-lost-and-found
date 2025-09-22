@@ -154,7 +154,7 @@ bot.start(async (ctx) => {
     ) {
       // User is not a member
       await ctx.reply(
-        `❌ You must join our channel to use this bot:\n\n${REQUIRED_CHANNEL}`,
+        `❌ You must join our channel to use this bot:\n\n${REQUIRED_CHANNEL}\n\nRestart the bot /start`,
         {
           reply_markup: {
             inline_keyboard: [
