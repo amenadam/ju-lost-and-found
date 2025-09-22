@@ -174,7 +174,7 @@ bot.start(async (ctx) => {
           },
         }
       );
-      return; // Just return, don't return false
+      return;
     }
   } catch (err) {
     console.error("Error checking channel membership:", err);
