@@ -159,8 +159,8 @@ bot.start(async (ctx) => {
             inline_keyboard: [
               [
                 {
-                  text: "Join Channel ✅",
-                  url: `https://t.me/${REQUIRED_CHANNEL.replace("@", "")}`,
+                  text: "✅ Joined",
+                  callback_data: "joined_check",
                 },
               ],
             ],
@@ -386,6 +386,30 @@ bot.on("photo", async (ctx) => {
       "❌ An error occurred while processing the photo.",
       mainMenu()
     );
+  }
+});
+
+bot.action("joined_check", async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const member = await ctx.telegram.getChatMember(REQUIRED_CHANNEL, userId);
+
+    if (
+      member.status === "member" ||
+      member.status === "administrator" ||
+      member.status === "creator"
+    ) {
+      // Restart bot (simulate /start)
+      await ctx.answerCbQuery("✅ Membership confirmed!");
+      await ctx.deleteMessage(); // remove old join message
+      return bot.commands.get("start").fn(ctx); // Call /start handler directly
+    } else {
+      await ctx.answerCbQuery("❌ You still need to join the channel.", {
+        show_alert: true,
+      });
+    }
+  } catch (err) {
+    console.error("Error verifying joined_check:", err);
   }
 });
 
