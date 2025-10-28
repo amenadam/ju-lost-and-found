@@ -430,6 +430,9 @@ bot.on("text", async (ctx) => {
       case "🔍 Search Lost/Found IDs":
         await handleSearchIDs(ctx);
         break;
+      case "❓ Help":
+        await handelHelp(ctx);
+        break;
       case "ℹ️ My Profile":
         await handleMyProfile(ctx);
         break;
@@ -481,8 +484,8 @@ bot.on("photo", async (ctx) => {
   }
 });
 
-bot.hears("❓ Help", (ctx) => {
-  ctx.reply(`*Need help? Here's how I work:*
+async function handelHelp(ctx) {
+  await ctx.reply(`*Need help? Here's how I work:*
 
 How to Use: You can report lost/found items. All data is user-generated.
 
@@ -499,7 +502,7 @@ What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often bes
 Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
 
 *Powered by @JUStudentsNetwork*`);
-});
+}
 // Handle Report Lost Item
 async function handleReportLostItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
