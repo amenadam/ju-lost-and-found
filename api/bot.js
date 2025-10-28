@@ -133,6 +133,26 @@ bot.command("reset", (ctx) => {
   ctx.reply("Session reset. Use /start to begin again.");
 });
 
+bot.command("help", (ctx) => {
+  ctx.reply(`Need help? Here's how I work:
+
+How to Use: You can report lost/found items. All data is user-generated.
+
+Safety Tips:
+Always arrange to meet in a public, safe place like a department office or the library for handovers.
+Verify ownership by asking for specific details about the item (e.g., "What was inside the wallet?" or "What color was the phone case?").
+
+Be respectful and punctual when communicating with others.
+
+What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often best to drop them at the relevant department office or the Registrar. For wallets with money, consider handing them to security.
+
+
+
+Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
+
+Powered by @JUStudentsNetwork`);
+});
+
 // Start command
 bot.start(async (ctx) => {
   console.log(`Start command from user: ${ctx.from.id}`);
@@ -196,6 +216,7 @@ bot.start(async (ctx) => {
 
     await ctx.reply(
       "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
+        "**Important:** By continuing, you agree that the information you provide when reporting lost/found items will be posted to our public Telegram channel to help reunite items with their owners.\n\n" +
         "Please register to use our services. Let's start with your full name:"
     );
   }
