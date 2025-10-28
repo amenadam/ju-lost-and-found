@@ -71,6 +71,7 @@ function mainMenu() {
     ["📌 Report Lost Item", "📦 Report Found Item"],
     //["🔍 Search Lost/Found IDs"],
     ["ℹ️ My Profile"],
+    ["❓ Help"],
   ]).resize();
 }
 
@@ -480,6 +481,25 @@ bot.on("photo", async (ctx) => {
   }
 });
 
+bot.hears("❓ Help", (ctx) => {
+  ctx.reply(`*Need help? Here's how I work:*
+
+How to Use: You can report lost/found items. All data is user-generated.
+
+Safety Tips:
+Always arrange to meet in a *public*, *safe place like a department office* or the *library for handovers*.
+Verify ownership by asking for *specific details about the item* (e.g., "What was inside the wallet?" or "What color was the phone case?").
+
+Be *respectful* and *punctual* when communicating with others.
+
+What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often best to drop them at the relevant department office or the Registrar. For wallets with money, consider handing them to security.
+
+
+
+Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
+
+*Powered by @JUStudentsNetwork*`);
+});
 // Handle Report Lost Item
 async function handleReportLostItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
@@ -544,7 +564,8 @@ async function handleMyProfile(ctx) {
       user.studentId
     }\nYear: ${user.currentYear}\nPhone: ${user.phoneNumber}\nStatus: ${
       user.verified ? "✅ Verified" : "❌ Not Verified"
-    }`,
+    }
+    \nContact @aminadam_solomon to edit profile`,
     mainMenu()
   );
 }
