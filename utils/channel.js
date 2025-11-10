@@ -11,7 +11,7 @@ async function postToChannel(channel, message, photo = null, user = null) {
       }
       message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`;
     }
-    message += `\n\t **Join our channel \n🔉 https://t.me/julostandfound\n\n report here @Julostandfound_bot** \n\n`;
+    message += `\n\t <b>Join our channel \n🔉 https://t.me/julostandfound\n\n report here @Julostandfound_bot</b> \n\n`;
     const extra = {
       parse_mode: "HTML",
     };
