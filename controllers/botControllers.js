@@ -1,5 +1,6 @@
 const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
+const User = require("../models/User");
 
 const { checkDBConnection } = require("../utils/db");
 
