@@ -9,9 +9,12 @@ async function postToChannel(channel, message, photo = null, user = null) {
       if (phone.startsWith("0")) {
         phone = "+251" + phone.slice(1);
       }
-      message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`;
+      if (!user?.username) {
+        return (message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`);
+      }
     }
-    message += `\n\t <b>Join our channel \n🔉 https://t.me/julostandfound\n\n report here @Julostandfound_bot</b> \n\n`;
+
+    message += `\n\t <b>Join our channel \n🔉 https://t.me/julostandfound\n\n  🎄 report here @Julostandfound_bot</b> \n\n`;
     const extra = {
       parse_mode: "HTML",
     };
@@ -36,7 +39,11 @@ async function postToChannel(channel, message, photo = null, user = null) {
         ...extra,
       });
     } else {
-      await bot.telegram.sendMessage(channel, message, extra);
+      await bot.telegram.sendMessage(channel, message, {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...extra,
+      });
     }
   } catch (error) {
     console.error("Channel posting error:", error);
