@@ -6,6 +6,14 @@ const { Markup } = require("telegraf");
 
 const { checkDBConnection } = require("../utils/db");
 const { postToChannel } = require("../utils/channel");
+function mainMenu() {
+  return Markup.keyboard([
+    ["📌 Report Lost Item", "📦 Report Found Item"],
+    //["🔍 Search Lost/Found IDs"],
+    ["ℹ️ My Profile"],
+    ["❓ Help"],
+  ]).resize();
+}
 
 const { version } = require("../package.json");
 function skipMenu() {
