@@ -1,10 +1,8 @@
 const { Telegraf, Markup } = require("telegraf");
 const User = require("../models/User");
 
-const { postToChannel } = require("../utils/channel");
-
 const { version } = require("../package.json");
-const { connectDB, checkDBConnection } = require("../utils/db");
+const { checkDBConnection } = require("../utils/db");
 const {
   handelHelp,
   handleReportLostItem,

@@ -5,6 +5,7 @@ const User = require("../models/User");
 const { Markup } = require("telegraf");
 
 const { checkDBConnection } = require("../utils/db");
+const { postToChannel } = require("../utils/channel");
 
 const { version } = require("../package.json");
 function skipMenu() {
