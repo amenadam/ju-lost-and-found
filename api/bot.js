@@ -1,8 +1,6 @@
 const { Telegraf, Markup } = require("telegraf");
-const mongoose = require("mongoose");
 const User = require("../models/User");
-const LostItem = require("../models/LostItem");
-const FoundItem = require("../models/FoundItem");
+
 const { postToChannel } = require("../utils/channel");
 
 const { version } = require("../package.json");

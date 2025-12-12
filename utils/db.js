@@ -1,3 +1,5 @@
+const mongoose = require("mongoose");
+
 // Connect to MongoDB
 async function connectDB() {
   try {

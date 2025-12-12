@@ -1,3 +1,6 @@
+const LostItem = require("../models/LostItem");
+const FoundItem = require("../models/FoundItem");
+
 async function handelHelp(ctx) {
   await ctx.reply(`Need help? Here's how I work:
   
