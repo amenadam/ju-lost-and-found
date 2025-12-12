@@ -1,6 +1,10 @@
 const LostItem = require("../models/LostItem");
 const FoundItem = require("../models/FoundItem");
 
+const { checkDBConnection } = require("../utils/db");
+
+const { version } = require("../package.json");
+
 async function handelHelp(ctx) {
   await ctx.reply(`Need help? Here's how I work:
   
@@ -17,6 +21,8 @@ async function handelHelp(ctx) {
   
   
   Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
+
+  v${version}
   
   Powered by @JUStudentsNetwork`);
 }
