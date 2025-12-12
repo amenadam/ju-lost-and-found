@@ -7,6 +7,9 @@ const { Markup } = require("telegraf");
 const { checkDBConnection } = require("../utils/db");
 
 const { version } = require("../package.json");
+function skipMenu() {
+  return Markup.keyboard([["skip"]]).resize();
+}
 
 async function handelHelp(ctx) {
   await ctx.reply(`Need help? Here's how I work:

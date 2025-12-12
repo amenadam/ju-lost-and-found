@@ -86,10 +86,6 @@ function mainMenu() {
   ]).resize();
 }
 
-function skipMenu() {
-  return Markup.keyboard([["skip"]]).resize();
-}
-
 // Debug command
 bot.command("debug", (ctx) => {
   console.log("Debug command received");
