@@ -10,7 +10,7 @@ async function postToChannel(channel, message, photo = null, user = null) {
         phone = "+251" + phone.slice(1);
       }
       if (!user?.username) {
-        return (message += `\n📞 Phone: <a href="tel:${phone}">${phone}</a>`);
+        return (message += `\n📞<b> Phone:</b> <a href="tel:${phone}">${phone}</a>`);
       }
     }
 
