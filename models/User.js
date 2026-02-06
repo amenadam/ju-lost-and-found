@@ -28,16 +28,37 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     idImage: {
-      type: String, // Make this optional
+      type: String,
     },
     verified: {
       type: Boolean,
       default: false,
     },
+    // Add activity tracking
+    lastActivity: {
+      type: Date,
+      default: Date.now,
+    },
+    reportCount: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+// Update lastActivity on save
+userSchema.pre("save", function (next) {
+  if (this.isModified()) {
+    this.lastActivity = Date.now();
+  }
+  next();
+});
 
 module.exports = mongoose.model("User", userSchema);

@@ -23,6 +23,7 @@ console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 
 // Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_ID = process.env.ADMIN_ID;
 const bot = new Telegraf(BOT_TOKEN);
 
 // Registration flow states
@@ -40,14 +41,17 @@ const sessionData = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 // Clean up old sessions
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of sessionData.entries()) {
-    if (now - value.lastActivity > SESSION_TIMEOUT) {
-      sessionData.delete(key);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, value] of sessionData.entries()) {
+      if (now - value.lastActivity > SESSION_TIMEOUT) {
+        sessionData.delete(key);
+      }
     }
-  }
-}, 5 * 60 * 1000); // Run every 5 minutes
+  },
+  5 * 60 * 1000,
+); // Run every 5 minutes
 
 // Session middleware
 bot.use((ctx, next) => {
@@ -89,8 +93,8 @@ bot.command("debug", (ctx) => {
   console.log("Debug command received");
   ctx.reply(
     `Bot is working! Your ID: ${ctx.from.id}, Session: ${JSON.stringify(
-      ctx.session
-    )}`
+      ctx.session,
+    )}`,
   );
 });
 
@@ -160,7 +164,7 @@ bot.start(async (ctx) => {
               ],
             ],
           },
-        }
+        },
       );
       return;
     }
@@ -174,7 +178,7 @@ bot.start(async (ctx) => {
   if (user) {
     await ctx.reply(
       `Welcome back, ${user.fullName}! How can I help you today?`,
-      mainMenu()
+      mainMenu(),
     );
   } else {
     // Start registration process
@@ -183,15 +187,156 @@ bot.start(async (ctx) => {
 
     console.log(
       `Starting registration for user: ${userId}, session: ${JSON.stringify(
-        ctx.session
-      )}`
+        ctx.session,
+      )}`,
     );
 
     await ctx.reply(
       "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
         "**Important:** By continuing, you agree that the information you provide when reporting lost/found items will be posted to our public Telegram channel to help reunite items with their owners.\n\n" +
-        "Please register to use our services. Let's start with your full name:"
+        "Please register to use our services. Let's start with your full name:",
     );
+  }
+});
+bot.command("stats", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 You are not authorized to access statistics.");
+  }
+
+  try {
+    // Show loading message
+    const loadingMsg = await ctx.reply("📊 Gathering statistics...");
+
+    // Get total users
+    const totalUsers = await User.countDocuments({});
+
+    // Get verified users
+    const verifiedUsers = await User.countDocuments({ verified: true });
+
+    // Get today's active users (users active in last 24 hours)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const todayActiveUsers = await User.countDocuments({
+      lastActivity: { $gte: yesterday },
+    });
+
+    // Get users registered today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const usersRegisteredToday = await User.countDocuments({
+      createdAt: { $gte: today },
+    });
+
+    // Get users registered this week
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const usersRegisteredThisWeek = await User.countDocuments({
+      createdAt: { $gte: weekAgo },
+    });
+
+    // Get year distribution
+    const yearDistribution = await User.aggregate([
+      {
+        $group: {
+          _id: "$currentYear",
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { count: -1 } },
+    ]);
+
+    // Get username stats
+    const usersWithUsername = await User.countDocuments({
+      username: { $ne: null, $ne: "" },
+    });
+
+    // Get daily growth (last 7 days)
+    const dailyGrowth = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const dailyCount = await User.countDocuments({
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      const dailyActive = await User.countDocuments({
+        lastActivity: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      dailyGrowth.push({
+        date: date.toISOString().split("T")[0],
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        registrations: dailyCount,
+        active: dailyActive,
+      });
+    }
+
+    // Format statistics message
+    let statsMessage = `🤖 *Lost & Found Bot Statistics*\n\n`;
+    statsMessage += `📈 *User Statistics:*\n`;
+    statsMessage += `├ Total Users: *${totalUsers}*\n`;
+    statsMessage += `├ Verified Users: *${verifiedUsers}*\n`;
+    statsMessage += `├ Active Today: *${todayActiveUsers}*\n`;
+    statsMessage += `├ Registered Today: *${usersRegisteredToday}*\n`;
+    statsMessage += `├ Registered This Week: *${usersRegisteredThisWeek}*\n`;
+    statsMessage += `└ With Username: *${usersWithUsername}* (${Math.round((usersWithUsername / totalUsers) * 100)}%)\n\n`;
+
+    statsMessage += `🎓 *Year Distribution:*\n`;
+    yearDistribution.forEach((year, index, array) => {
+      const isLast = index === array.length - 1;
+      const prefix = isLast ? "└ " : "├ ";
+      const percentage =
+        totalUsers > 0 ? ((year.count / totalUsers) * 100).toFixed(1) : "0.0";
+      statsMessage += `${prefix}${year._id || "Unknown"}: *${year.count}* (${percentage}%)\n`;
+    });
+
+    statsMessage += `\n📅 *Last 7 Days Activity:*\n`;
+    dailyGrowth.forEach((day) => {
+      statsMessage += `├ ${day.day}: ${day.registrations} new, ${day.active} active\n`;
+    });
+
+    statsMessage += `\n📊 *Averages (Last 7 Days):*\n`;
+    const avgRegistrations = (
+      dailyGrowth.reduce((sum, day) => sum + day.registrations, 0) / 7
+    ).toFixed(1);
+    const avgActive = (
+      dailyGrowth.reduce((sum, day) => sum + day.active, 0) / 7
+    ).toFixed(1);
+    statsMessage += `├ Avg. Daily Registrations: *${avgRegistrations}*\n`;
+    statsMessage += `└ Avg. Daily Active Users: *${avgActive}*\n`;
+
+    statsMessage += `\n📅 *Last Updated:* ${new Date().toLocaleString()}\n`;
+    statsMessage += `🤖 *Bot Version:* ${version}`;
+
+    // Delete loading message
+    try {
+      await ctx.deleteMessage(loadingMsg.message_id);
+    } catch (err) {
+      console.error("Error deleting loading message:", err);
+    }
+
+    // Send statistics
+    await ctx.replyWithMarkdown(statsMessage, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "👥 View All Users", callback_data: "stats_users" },
+            { text: "📋 Get User IDs", callback_data: "stats_ids" },
+          ],
+          [
+            { text: "📊 Detailed Stats", callback_data: "stats_detailed" },
+            { text: "🔄 Refresh", callback_data: "stats_refresh" },
+          ],
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Error gathering statistics:", error);
+    await ctx.reply("⚠️ Error gathering statistics: " + error.message);
   }
 });
 
@@ -203,7 +348,7 @@ bot.action("joined_check", async (ctx) => {
 
     if (!REQUIRED_CHANNEL) {
       await ctx.answerCbQuery(
-        "❌ Channel not configured. Please contact admin."
+        "❌ Channel not configured. Please contact admin.",
       );
       return;
     }
@@ -223,16 +368,16 @@ bot.action("joined_check", async (ctx) => {
           Markup.inlineKeyboard([
             Markup.button.callback(
               "📝 Start Registration",
-              "start_registration"
+              "start_registration",
             ),
-          ])
+          ]),
         );
       } catch (editError) {
         await ctx.reply(
           "✅ Channel membership verified! Please click the button below to start your registration:",
           Markup.inlineKeyboard([
             Markup.button.callback("📝 Continue", "start_registration"),
-          ])
+          ]),
         );
       }
     } else {
@@ -297,11 +442,11 @@ bot.on("text", async (ctx) => {
       ctx.session.registrationStart
     ) {
       console.log(
-        `Registration in progress, state: ${ctx.session.registrationState}`
+        `Registration in progress, state: ${ctx.session.registrationState}`,
       );
       if (Date.now() - ctx.session.registrationStart > REGISTRATION_TIMEOUT) {
         await ctx.reply(
-          "❌ Registration timed out. Please start again with /start"
+          "❌ Registration timed out. Please start again with /start",
         );
         ctx.session.registrationState = REGISTRATION_STATES.NONE;
         ctx.session.registrationStart = null;
@@ -315,7 +460,7 @@ bot.on("text", async (ctx) => {
       ctx.session.registrationState !== REGISTRATION_STATES.NONE
     ) {
       console.log(
-        `Processing registration step: ${ctx.session.registrationState}`
+        `Processing registration step: ${ctx.session.registrationState}`,
       );
 
       try {
@@ -325,7 +470,7 @@ bot.on("text", async (ctx) => {
             ctx.session.fullName = ctx.message.text;
             ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
             console.log(
-              `Set fullName: ${ctx.session.fullName}, moving to student ID`
+              `Set fullName: ${ctx.session.fullName}, moving to student ID`,
             );
             await ctx.reply("Please enter your Student ID number:");
             break;
@@ -337,14 +482,14 @@ bot.on("text", async (ctx) => {
 
             if (!idPattern.test(rawId)) {
               await ctx.reply(
-                "❌ Invalid Student ID format. Example: RU0238/17"
+                "❌ Invalid Student ID format. Example: RU0238/17",
               );
               ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
               return;
             }
             ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
             console.log(
-              `Set studentId: ${ctx.session.studentId}, moving to current year`
+              `Set studentId: ${ctx.session.studentId}, moving to current year`,
             );
             await ctx.reply("Please enter your current year (e.g., 2nd Year):");
             break;
@@ -353,14 +498,14 @@ bot.on("text", async (ctx) => {
             ctx.session.currentYear = ctx.message.text;
             ctx.session.registrationState = REGISTRATION_STATES.PHONE_NUMBER;
             console.log(
-              `Set currentYear: ${ctx.session.currentYear}, moving to phone number`
+              `Set currentYear: ${ctx.session.currentYear}, moving to phone number`,
             );
             await ctx.reply("Please enter your phone number:");
             break;
 
           case REGISTRATION_STATES.PHONE_NUMBER:
             console.log(
-              `Completing registration with phone: ${ctx.message.text}`
+              `Completing registration with phone: ${ctx.message.text}`,
             );
             try {
               // Validate studentId format
@@ -397,7 +542,7 @@ bot.on("text", async (ctx) => {
           default:
             console.error(`Unknown registration state: ${state}`);
             await ctx.reply(
-              "❌ Registration error. Please start again with /start"
+              "❌ Registration error. Please start again with /start",
             );
             ctx.session.registrationState = REGISTRATION_STATES.NONE;
             ctx.session.registrationStart = null;
@@ -405,7 +550,7 @@ bot.on("text", async (ctx) => {
       } catch (error) {
         console.error("Error in registration flow:", error);
         await ctx.reply(
-          "❌ An error occurred during registration. Please try again with /start"
+          "❌ An error occurred during registration. Please try again with /start",
         );
         ctx.session.registrationState = REGISTRATION_STATES.NONE;
         ctx.session.registrationStart = null;
@@ -450,14 +595,14 @@ bot.on("text", async (ctx) => {
         // If none of the above, show main menu
         await ctx.reply(
           "Please select an option from the menu: \ntap /reset if bot not working properly",
-          mainMenu()
+          mainMenu(),
         );
     }
   } catch (err) {
     console.error(err);
     await ctx.reply(
       "❌ An error occurred. Please tap /reset and try again later. ",
-      mainMenu()
+      mainMenu(),
     );
   }
 });
@@ -477,7 +622,7 @@ bot.on("photo", async (ctx) => {
     console.error(err);
     await ctx.reply(
       "❌ An error occurred while processing the photo.",
-      mainMenu()
+      mainMenu(),
     );
   }
 });
