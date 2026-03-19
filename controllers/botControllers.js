@@ -312,44 +312,43 @@ async function notifyExistingOwners(newItem, matches, itemType, ctx) {
     for (const match of matches) {
       const existingOwner = match.userId;
 
-      // Don't notify if it's the same user
       if (existingOwner.telegramId === ctx.from.id) continue;
 
-      let message = `🎯 *New Potential ${itemType.toUpperCase()} Item Match Found!*\n\n`;
-      message += `A new ${itemType} item has been reported that might match your ${match.itemType}:\n\n`;
+      let message = `<b>🎯 New Potential ${itemType.toUpperCase()} Item Match Found!</b>\n\n`;
+      message += `A new <b>${itemType}</b> item has been reported that might match your ${match.itemType}:\n\n`;
 
-      message += `*New ${itemType} Item Details:*\n`;
-      message += `📌 *Type:* ${newItem.itemType}\n`;
+      message += `<b>New ${itemType} Item Details:</b>\n`;
+      message += `📌 Type: ${newItem.itemType}\n`;
 
       if (newItem.itemType === "ID") {
-        message += `🆔 *ID Number:* ${newItem.studentIdNumber}\n`;
+        message += `🆔 ID Number: ${newItem.studentIdNumber}\n`;
       }
 
-      message += `📝 *Description:* ${newItem.description.substring(0, 100)}${newItem.description.length > 100 ? "..." : ""}\n`;
-      message += `👤 *Reporter:* `;
+      message += `📝 Description: ${newItem.description.substring(0, 100)}${newItem.description.length > 100 ? "..." : ""}\n`;
+      message += `👤 Reporter: `;
       if (newItemReporter.username) {
         message += `@${newItemReporter.username}\n`;
       } else {
         message += `${newItemReporter.fullName}\n`;
-        message += `📞 *Phone:* ${newItemReporter.phoneNumber}\n`;
+        message += `📞 Phone: ${newItemReporter.phoneNumber}\n`;
       }
-      message += `📅 *Reported:* ${new Date(newItem.createdAt).toLocaleDateString()}\n\n`;
+      message += `📅 Reported: ${new Date(newItem.createdAt).toLocaleDateString()}\n\n`;
 
-      message += `*Your ${match.itemType} Item:*\n`;
-      message += `📝 *Description:* ${match.description}\n\n`;
+      message += `<b>Your ${match.itemType} Item:</b>\n`;
+      message += `📝 Description: ${match.description}\n\n`;
 
-      message += `*Next Steps:*\n`;
+      message += `<b>Next Steps:</b>\n`;
       message += `1. Contact the person who reported the ${itemType} item\n`;
       message += `2. Verify ownership by asking for specific details\n`;
       message += `3. Arrange a safe meetup location\n\n`;
-      message += `_⚠️ Always meet in a public place and verify ownership!_`;
+      message += `<i>⚠️ Always meet in a public place and verify ownership!</i>`;
 
       if (botInstance) {
         await botInstance.telegram.sendMessage(
           existingOwner.telegramId,
           message,
           {
-            parse_mode: "Markdown",
+            parse_mode: "HTML",
             reply_markup: {
               inline_keyboard: [
                 [
