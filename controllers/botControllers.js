@@ -249,45 +249,45 @@ async function notifyReporterAboutMatches(newItem, matches, oppositeType, ctx) {
     const reporter = await User.findOne({ telegramId: ctx.from.id });
     if (!reporter) return;
 
-    let message = `🔍 *Potential ${oppositeType.toUpperCase()} Item Matches Found!*\n\n`;
+    let message = `<b>🔍 Potential ${oppositeType.toUpperCase()} Item Matches Found!</b>\n\n`;
     message += `We found ${matches.length} potential ${oppositeType} item(s) that might match your ${newItem.itemType}:\n\n`;
 
     for (let i = 0; i < Math.min(matches.length, 3); i++) {
       const match = matches[i];
       const matchUser = match.userId;
 
-      message += `*Match #${i + 1}*\n`;
-      message += `📌 *Type:* ${match.itemType}\n`;
+      message += `<b>Match #${i + 1}</b>\n`;
+      message += `📌 Type: ${match.itemType}\n`;
 
       if (match.itemType === "ID") {
-        message += `🆔 *ID Number:* ${match.studentIdNumber}\n`;
+        message += `🆔 ID Number: ${match.studentIdNumber}\n`;
       }
 
-      message += `📝 *Description:* ${match.description.substring(0, 100)}${match.description.length > 100 ? "..." : ""}\n`;
+      message += `📝 Description: ${match.description.substring(0, 100)}${match.description.length > 100 ? "..." : ""}\n`;
 
       if (matchUser) {
-        message += `👤 *Contact:* `;
+        message += `👤 Contact: `;
         if (matchUser.username) {
           message += `@${matchUser.username}\n`;
         } else {
           message += `${matchUser.fullName}\n`;
-          message += `📞 *Phone:* ${matchUser.phoneNumber}\n`;
+          message += `📞 Phone: ${matchUser.phoneNumber}\n`;
         }
       }
-      message += `📅 *Reported:* ${new Date(match.createdAt).toLocaleDateString()}\n\n`;
+      message += `📅 Reported: ${new Date(match.createdAt).toLocaleDateString()}\n\n`;
     }
 
     if (matches.length > 3) {
-      message += `*...and ${matches.length - 3} more matches*\n\n`;
+      message += `<b>...and ${matches.length - 3} more matches</b>\n\n`;
     }
 
-    message += `*Next Steps:*\n`;
+    message += `<b>Next Steps:</b>\n`;
     message += `1. Contact the person who reported the ${oppositeType} item\n`;
     message += `2. Verify ownership by asking for specific details\n`;
     message += `3. Arrange a safe meetup location\n\n`;
-    message += `_⚠️ Always meet in a public place and verify ownership!_`;
+    message += `<i>⚠️ Always meet in a public place and verify ownership!</i>`;
 
-    await ctx.reply(message, { parse_mode: "Markdown" });
+    await ctx.reply(message, { parse_mode: "HTML" });
   } catch (error) {
     console.error("Error notifying reporter:", error);
   }
