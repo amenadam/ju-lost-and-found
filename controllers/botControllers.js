@@ -287,18 +287,7 @@ async function notifyReporterAboutMatches(newItem, matches, oppositeType, ctx) {
     message += `3. Arrange a safe meetup location\n\n`;
     message += `_⚠️ Always meet in a public place and verify ownership!_`;
 
-    await ctx.replyWithMarkdown(message, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: `📋 View All Matches`,
-              callback_data: `view_matches_${newItem._id}_${newItem.itemType}`,
-            },
-          ],
-        ],
-      },
-    });
+    await ctx.reply(message, { parse_mode: "Markdown" });
   } catch (error) {
     console.error("Error notifying reporter:", error);
   }
@@ -349,16 +338,6 @@ async function notifyExistingOwners(newItem, matches, itemType, ctx) {
           message,
           {
             parse_mode: "HTML",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: `📋 View Details`,
-                    callback_data: `view_match_${newItem._id}`,
-                  },
-                ],
-              ],
-            },
           },
         );
       }
