@@ -6,6 +6,12 @@ const { Markup } = require("telegraf");
 
 const { checkDBConnection } = require("../utils/db");
 const { postToChannel } = require("../utils/channel");
+
+let botInstance = null;
+
+function setBotInstance(bot) {
+  botInstance = bot;
+}
 function mainMenu() {
   return Markup.keyboard([
     ["📌 Report Lost Item", "📦 Report Found Item"],
@@ -16,6 +22,7 @@ function mainMenu() {
 }
 
 const { version } = require("../package.json");
+
 function skipMenu() {
   return Markup.keyboard([["skip"]]).resize();
 }
@@ -60,7 +67,7 @@ async function handleReportLostItem(ctx) {
     "What type of item did you lose?",
     Markup.keyboard([["ID", "Phone", "Bag", "Other"]])
       .resize()
-      .oneTime()
+      .oneTime(),
   );
 }
 
@@ -83,7 +90,7 @@ async function handleReportFoundItem(ctx) {
     "What type of item did you find?",
     Markup.keyboard([["ID", "Phone", "Bag", "Other"]])
       .resize()
-      .oneTime()
+      .oneTime(),
   );
 }
 
@@ -107,7 +114,7 @@ async function handleMyProfile(ctx) {
       user.verified ? "✅ Verified" : "❌ Not Verified"
     }
       \nContact @aminadam_solomon to edit profile`,
-    mainMenu()
+    mainMenu(),
   );
 }
 
@@ -150,7 +157,7 @@ async function handleItemReporting(ctx) {
     ctx.session.reporting.step = "photo";
     await ctx.reply(
       'Please upload a photo of the item (or send "skip" to continue without photo):',
-      skipMenu()
+      skipMenu(),
     );
   } else if (step === "photo" && ctx.message.text?.toLowerCase() === "skip") {
     await completeItemReport(ctx);
@@ -183,6 +190,328 @@ async function handleSearchFunctionality(ctx) {
   ctx.session.searching = false;
 }
 
+async function checkForMatches(newItem, itemType, ctx) {
+  try {
+    const oppositeModel = itemType === "lost" ? FoundItem : LostItem;
+    const oppositeType = itemType === "lost" ? "found" : "lost";
+
+    let query = {};
+
+    if (newItem.itemType === "ID") {
+      query = {
+        itemType: "ID",
+        studentIdNumber: newItem.studentIdNumber,
+        matched: false,
+      };
+    } else {
+      const keywords = newItem.description
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((word) => word.length > 3)
+        .slice(0, 5);
+
+      const keywordPatterns = keywords.map(
+        (keyword) => new RegExp(keyword, "i"),
+      );
+
+      query = {
+        itemType: newItem.itemType,
+        matched: false,
+        $or: keywordPatterns.map((pattern) => ({ description: pattern })),
+      };
+    }
+
+    const potentialMatches = await oppositeModel
+      .find(query)
+      .populate("userId")
+      .limit(10);
+
+    if (potentialMatches.length === 0) return [];
+
+    await notifyReporterAboutMatches(
+      newItem,
+      potentialMatches,
+      oppositeType,
+      ctx,
+    );
+
+    await notifyExistingOwners(newItem, potentialMatches, itemType, ctx);
+
+    return potentialMatches;
+  } catch (error) {
+    console.error("Error checking for matches:", error);
+    return [];
+  }
+}
+
+async function notifyReporterAboutMatches(newItem, matches, oppositeType, ctx) {
+  try {
+    const reporter = await User.findOne({ telegramId: ctx.from.id });
+    if (!reporter) return;
+
+    let message = `🔍 *Potential ${oppositeType.toUpperCase()} Item Matches Found!*\n\n`;
+    message += `We found ${matches.length} potential ${oppositeType} item(s) that might match your ${newItem.itemType}:\n\n`;
+
+    for (let i = 0; i < Math.min(matches.length, 3); i++) {
+      const match = matches[i];
+      const matchUser = match.userId;
+
+      message += `*Match #${i + 1}*\n`;
+      message += `📌 *Type:* ${match.itemType}\n`;
+
+      if (match.itemType === "ID") {
+        message += `🆔 *ID Number:* ${match.studentIdNumber}\n`;
+      }
+
+      message += `📝 *Description:* ${match.description.substring(0, 100)}${match.description.length > 100 ? "..." : ""}\n`;
+
+      if (matchUser) {
+        message += `👤 *Contact:* `;
+        if (matchUser.username) {
+          message += `@${matchUser.username}\n`;
+        } else {
+          message += `${matchUser.fullName}\n`;
+          message += `📞 *Phone:* ${matchUser.phoneNumber}\n`;
+        }
+      }
+      message += `📅 *Reported:* ${new Date(match.createdAt).toLocaleDateString()}\n\n`;
+    }
+
+    if (matches.length > 3) {
+      message += `*...and ${matches.length - 3} more matches*\n\n`;
+    }
+
+    message += `*Next Steps:*\n`;
+    message += `1. Contact the person who reported the ${oppositeType} item\n`;
+    message += `2. Verify ownership by asking for specific details\n`;
+    message += `3. Arrange a safe meetup location\n\n`;
+    message += `_⚠️ Always meet in a public place and verify ownership!_`;
+
+    await ctx.replyWithMarkdown(message, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: `📋 View All Matches`,
+              callback_data: `view_matches_${newItem._id}_${newItem.itemType}`,
+            },
+          ],
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Error notifying reporter:", error);
+  }
+}
+
+async function notifyExistingOwners(newItem, matches, itemType, ctx) {
+  try {
+    const newItemReporter = await User.findOne({ telegramId: ctx.from.id });
+    if (!newItemReporter) return;
+
+    for (const match of matches) {
+      const existingOwner = match.userId;
+
+      // Don't notify if it's the same user
+      if (existingOwner.telegramId === ctx.from.id) continue;
+
+      let message = `🎯 *New Potential ${itemType.toUpperCase()} Item Match Found!*\n\n`;
+      message += `A new ${itemType} item has been reported that might match your ${match.itemType}:\n\n`;
+
+      message += `*New ${itemType} Item Details:*\n`;
+      message += `📌 *Type:* ${newItem.itemType}\n`;
+
+      if (newItem.itemType === "ID") {
+        message += `🆔 *ID Number:* ${newItem.studentIdNumber}\n`;
+      }
+
+      message += `📝 *Description:* ${newItem.description.substring(0, 100)}${newItem.description.length > 100 ? "..." : ""}\n`;
+      message += `👤 *Reporter:* `;
+      if (newItemReporter.username) {
+        message += `@${newItemReporter.username}\n`;
+      } else {
+        message += `${newItemReporter.fullName}\n`;
+        message += `📞 *Phone:* ${newItemReporter.phoneNumber}\n`;
+      }
+      message += `📅 *Reported:* ${new Date(newItem.createdAt).toLocaleDateString()}\n\n`;
+
+      message += `*Your ${match.itemType} Item:*\n`;
+      message += `📝 *Description:* ${match.description}\n\n`;
+
+      message += `*Next Steps:*\n`;
+      message += `1. Contact the person who reported the ${itemType} item\n`;
+      message += `2. Verify ownership by asking for specific details\n`;
+      message += `3. Arrange a safe meetup location\n\n`;
+      message += `_⚠️ Always meet in a public place and verify ownership!_`;
+
+      if (botInstance) {
+        await botInstance.telegram.sendMessage(
+          existingOwner.telegramId,
+          message,
+          {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: `📋 View Details`,
+                    callback_data: `view_match_${newItem._id}`,
+                  },
+                ],
+              ],
+            },
+          },
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error notifying existing owners:", error);
+  }
+}
+
+async function handleMatchCallbacks(ctx) {
+  try {
+    await ctx.answerCbQuery();
+    const data = ctx.callbackQuery.data;
+
+    if (data.startsWith("view_matches_")) {
+      const parts = data.split("_");
+      const itemId = parts[2];
+      const itemType = parts[3];
+      await showAllMatches(ctx, itemId, itemType);
+    } else if (data.startsWith("view_match_")) {
+      const matchId = data.replace("view_match_", "");
+      await showSingleMatch(ctx, matchId);
+    }
+  } catch (error) {
+    console.error("Error handling match callback:", error);
+    await ctx.reply("❌ Error processing your request.");
+  }
+}
+
+async function showAllMatches(ctx, itemId, itemType) {
+  try {
+    const Model = itemType === "lost" ? LostItem : FoundItem;
+    const originalItem = await Model.findById(itemId);
+
+    if (!originalItem) {
+      await ctx.reply("❌ Item not found.");
+      return;
+    }
+
+    const oppositeModel = itemType === "lost" ? FoundItem : LostItem;
+    const oppositeType = itemType === "lost" ? "found" : "lost";
+
+    let query = {};
+    if (originalItem.itemType === "ID") {
+      query = {
+        itemType: "ID",
+        studentIdNumber: originalItem.studentIdNumber,
+        matched: false,
+      };
+    } else {
+      const keywords = originalItem.description
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((word) => word.length > 3)
+        .slice(0, 5);
+
+      const keywordPatterns = keywords.map(
+        (keyword) => new RegExp(keyword, "i"),
+      );
+
+      query = {
+        itemType: originalItem.itemType,
+        matched: false,
+        $or: keywordPatterns.map((pattern) => ({ description: pattern })),
+      };
+    }
+
+    const matches = await oppositeModel
+      .find(query)
+      .populate("userId")
+      .sort({ createdAt: -1 });
+
+    if (matches.length === 0) {
+      await ctx.reply("No matches found at this time.", mainMenu());
+      return;
+    }
+
+    let message = `📋 *All Potential Matches (${matches.length})*\n\n`;
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const matchUser = match.userId;
+
+      message += `*Match #${i + 1}*\n`;
+      message += `📌 *Type:* ${match.itemType}\n`;
+
+      if (match.itemType === "ID") {
+        message += `🆔 *ID Number:* ${match.studentIdNumber}\n`;
+      }
+
+      message += `📝 *Description:* ${match.description.substring(0, 100)}${match.description.length > 100 ? "..." : ""}\n`;
+
+      if (matchUser) {
+        message += `👤 *Contact:* `;
+        if (matchUser.username) {
+          message += `@${matchUser.username}\n`;
+        } else {
+          message += `${matchUser.fullName}\n`;
+          message += `📞 *Phone:* ${matchUser.phoneNumber}\n`;
+        }
+      }
+      message += `📅 *Reported:* ${new Date(match.createdAt).toLocaleDateString()}\n\n`;
+    }
+
+    await ctx.replyWithMarkdown(message, mainMenu());
+  } catch (error) {
+    console.error("Error showing all matches:", error);
+    await ctx.reply("❌ Error fetching matches.", mainMenu());
+  }
+}
+
+async function showSingleMatch(ctx, matchId) {
+  try {
+    let match = await FoundItem.findById(matchId).populate("userId");
+    let type = "found";
+
+    if (!match) {
+      match = await LostItem.findById(matchId).populate("userId");
+      type = "lost";
+    }
+
+    if (!match) {
+      await ctx.reply("❌ Match not found.");
+      return;
+    }
+
+    const matchUser = match.userId;
+
+    let message = `📋 *Match Details*\n\n`;
+    message += `*Item Type:* ${match.itemType}\n`;
+
+    if (match.itemType === "ID") {
+      message += `*ID Number:* ${match.studentIdNumber}\n`;
+    }
+
+    message += `*Description:* ${match.description}\n`;
+    message += `*Status:* ${match.matched ? "✅ Matched" : "⏳ Available"}\n\n`;
+
+    message += `*Reporter Information:*\n`;
+    message += `*Name:* ${matchUser.fullName}\n`;
+    if (matchUser.username) {
+      message += `*Username:* @${matchUser.username}\n`;
+    }
+    message += `*Phone:* ${matchUser.phoneNumber}\n`;
+    message += `*Student ID:* ${matchUser.studentId}\n`;
+
+    await ctx.replyWithMarkdown(message, mainMenu());
+  } catch (error) {
+    console.error("Error showing single match:", error);
+    await ctx.reply("❌ Error fetching match details.", mainMenu());
+  }
+}
 // Helper: Complete item report
 async function completeItemReport(ctx) {
   const { reporting } = ctx.session;
@@ -216,7 +545,7 @@ async function completeItemReport(ctx) {
       return;
     }
     const message = `${
-      reporting.type === "lost" ?  `<b>🚨 LOST ITEM</b>` : `<b>🎉 FOUND ITEM</b>`
+      reporting.type === "lost" ? `<b>🚨 LOST ITEM</b>` : `<b>🎉 FOUND ITEM</b>`
     }\n\n<b>Type:</b> ${reporting.itemType}\n${
       reporting.itemType === "ID" ? `<b>ID Number</b>` : `<b>Description</b>`
     }: ${reporting.description}\n<b>Reported by:</b> ${user.fullName}`;
@@ -248,8 +577,9 @@ async function completeItemReport(ctx) {
 
     await ctx.reply(
       `✅ Your ${reporting.type} item has been reported!`,
-      mainMenu()
+      mainMenu(),
     );
+    await checkForMatches(item, reporting.type, ctx);
 
     ctx.session.reporting = null;
   } catch (error) {
@@ -273,4 +603,6 @@ module.exports = {
   handleSearchFunctionality,
   completeItemReport,
   handleContactAdmin,
+  handleMatchCallbacks,
+  setBotInstance,
 };

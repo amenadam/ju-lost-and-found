@@ -12,6 +12,8 @@ const {
   handleItemReporting,
   handleSearchFunctionality,
   completeItemReport,
+  handleMatchCallbacks,
+  setBotInstance,
 } = require("../controllers/botControllers");
 
 //global variables
@@ -25,7 +27,7 @@ console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const bot = new Telegraf(BOT_TOKEN);
-
+setBotInstance(bot);
 // Registration flow states
 const REGISTRATION_STATES = {
   NONE: "none",
@@ -339,7 +341,12 @@ bot.command("stats", async (ctx) => {
     await ctx.reply("⚠️ Error gathering statistics: " + error.message);
   }
 });
-
+bot.action("view_matches_", async (ctx) => {
+  await handleMatchCallbacks(ctx);
+});
+bot.action("view_match_", async (ctx) => {
+  await handleMatchCallbacks(ctx);
+});
 bot.action("joined_check", async (ctx) => {
   try {
     const userId = ctx.from.id;

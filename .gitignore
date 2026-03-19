@@ -4,3 +4,6 @@ node_modules
 .env
 
 sendMessage.js
+ids.js
+ids.txt
+send.js
