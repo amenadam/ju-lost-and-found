@@ -114,7 +114,7 @@ async function handleMyProfile(ctx) {
       user.verified ? "✅ Verified" : "❌ Not Verified"
     }
       \nContact @aminadam_solomon to edit profile`,
-    Markup.keyboard([["Edit Profile"], ["Back"]]).resize(),
+    Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
   );
 }
 
@@ -129,6 +129,54 @@ async function handleProfileChange(ctx, data) {
       sessionData.delete(id);
     }
     return;
+  }
+}
+
+async function handleMyPosts(ctx) {
+  if (!(await checkDBConnection(ctx))) return;
+
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start", mainMenu());
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
+    return;
+  }
+
+  try {
+    let lostReports = await LostItem.find({ telegramId: ctx?.from.id });
+    if (!lostReports) {
+      lostReports = [];
+    }
+    if (lostReports > 0) {
+      await ctx.reply("Your Lost reports");
+      for (let i = 0; i < lostReports.length; i++) {
+        await ctx.reply(
+          `${i + 1}. ${lostReports[i].itemType} - ${lostReports[i].itemType == "ID" ? lostReports[i].studentIdNumber : lostReports[i].description}`,
+        );
+      }
+    } else {
+      await ctx.reply("No Lost Reported yet!");
+    }
+
+    let foundReports = await FoundItem.find({ telegramId: ctx?.from.id });
+    if (!foundReports) {
+      foundReports = [];
+    }
+    if (foundReports > 0) {
+      await ctx.reply("Your Lost reports");
+      for (let i = 0; i < foundReports.length; i++) {
+        await ctx.reply(
+          `${i + 1}. ${foundReports[i].itemType} - ${foundReports[i].itemType == "ID" ? foundReports[i].studentIdNumber : lostReports[i].description}`,
+        );
+      }
+    } else {
+      await ctx.reply("No Found Reported Yet!");
+    }
+  } catch (error) {
+    await ctx.reply("Error getting posts", error?.message || "");
   }
 }
 // Handle Search IDs
@@ -596,4 +644,5 @@ module.exports = {
   handleContactAdmin,
   handleMatchCallbacks,
   setBotInstance,
+  handleMyPosts,
 };

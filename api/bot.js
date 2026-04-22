@@ -582,6 +582,18 @@ bot.on("text", async (ctx) => {
       case "ℹ️ My Profile":
         await handleMyProfile(ctx);
         break;
+      case "Edit Profile":
+        await ctx.answerCbQuery("Working on it!");
+        await ctx.reply("Main Menu:", mainMenu());
+        break;
+      case "Edit Profile":
+        await ctx.answerCbQuery("Main Menu");
+        await ctx.reply("Main Menu:", mainMenu());
+        break;
+      case "My Posts":
+        await ctx.answerCbQuery("Your Posts");
+        await handleMyPosts(ctx);
+        break;
       default:
         // Item reporting flow
         if (ctx.session.reporting?.step) {
