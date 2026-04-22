@@ -147,10 +147,10 @@ async function handleMyPosts(ctx) {
 
   try {
     let lostReports = await LostItem.find({ telegramId: ctx?.from.id });
-    if (!lostReports) {
+    if (!lostReports || lostReports.length == 0) {
       lostReports = [];
     }
-    if (lostReports > 0) {
+    if (lostReports.length > 0) {
       await ctx.reply("Your Lost reports");
       for (let i = 0; i < lostReports.length; i++) {
         await ctx.reply(
@@ -162,10 +162,10 @@ async function handleMyPosts(ctx) {
     }
 
     let foundReports = await FoundItem.find({ telegramId: ctx?.from.id });
-    if (!foundReports) {
+    if (!foundReports || foundReports.length == 0) {
       foundReports = [];
     }
-    if (foundReports > 0) {
+    if (foundReports.length > 0) {
       await ctx.reply("Your Lost reports");
       for (let i = 0; i < foundReports.length; i++) {
         await ctx.reply(
