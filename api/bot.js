@@ -618,7 +618,7 @@ bot.on("text", async (ctx) => {
         );
     }
   } catch (err) {
-    console.error(err);
+    console.error(err.message || err);
     await ctx.reply(
       "❌ An error occurred. Please tap /reset and try again later. ",
       mainMenu(),
