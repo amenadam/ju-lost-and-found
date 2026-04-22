@@ -114,10 +114,23 @@ async function handleMyProfile(ctx) {
       user.verified ? "✅ Verified" : "❌ Not Verified"
     }
       \nContact @aminadam_solomon to edit profile`,
-    mainMenu(),
+    Markup.keyboard([["Edit Profile"], ["Back"]]).resize(),
   );
 }
 
+async function handleProfileChange(ctx, data) {
+  if (!(await checkDBConnection(ctx))) return;
+
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start", mainMenu());
+    const id = ctx.from.id;
+    if (sessionData.has(id)) {
+      sessionData.delete(id);
+    }
+    return;
+  }
+}
 // Handle Search IDs
 async function handleSearchIDs(ctx) {
   if (!(await checkDBConnection(ctx))) return;
@@ -534,7 +547,7 @@ async function completeItemReport(ctx) {
         : process.env.CHANNEL_FOUND_ITEMS;
 
     if (channelEnv) {
-      await postToChannel(channelEnv, message, reporting.photo, user);
+      await postToChannel(channelEnv, message, reporting.photo, user, ctx);
     }
 
     if (reporting.itemType === "ID" && reporting.type !== "lost") {

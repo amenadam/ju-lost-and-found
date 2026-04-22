@@ -2,14 +2,14 @@ const { Telegraf } = require("telegraf");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-async function postToChannel(channel, message, photo = null, user = null) {
+async function postToChannel(channel, message, photo = null, user = null, ctx) {
   try {
     if (user?.phoneNumber) {
       let phone = user.phoneNumber;
       if (phone.startsWith("0")) {
         phone = "+251" + phone.slice(1);
       }
-      if (!user?.username) {
+      if (!ctx?.from.username) {
         return (message += `\n📞<b> Phone:</b> <a href="tel:${phone}">${phone}</a>`);
       }
     }
@@ -20,13 +20,13 @@ async function postToChannel(channel, message, photo = null, user = null) {
     };
 
     // Only add button if Telegram username
-    if (user?.username) {
+    if (ctx?.from.username) {
       extra.reply_markup = {
         inline_keyboard: [
           [
             {
               text: "📩 Contact Reporter",
-              url: `https://t.me/${user.username}`,
+              url: `https://t.me/${ctx.from.username}`,
             },
           ],
         ],
