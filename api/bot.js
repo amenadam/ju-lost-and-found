@@ -14,6 +14,7 @@ const {
   completeItemReport,
   handleMatchCallbacks,
   setBotInstance,
+  handleMyPosts,
 } = require("../controllers/botControllers");
 
 //global variables
