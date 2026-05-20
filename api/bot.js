@@ -4,9 +4,6 @@ const User = require("../models/User");
 const { version } = require("../package.json");
 const { checkDBConnection } = require("../utils/db");
 const Ad = require("../models/Ad");
-
-const { maybeShowAd } = require("../utils/ads");
-
 const {
   handelHelp,
   handleReportLostItem,
@@ -172,7 +169,6 @@ bot.start(async (ctx) => {
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu(),
     );
-    return await maybeShowAd(ctx, bot);
   } else {
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
@@ -197,7 +193,7 @@ bot.command("addad", async (ctx) => {
   const raw = ctx.message.text.replace("/addad", "").trim();
   if (!raw) {
     return ctx.reply(
-      "Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser] \nExample: \n /addad Check out JU Marketplace! | Visit | https://t.me/example | ACME Co.",
+      "Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser]\nExample:\n/addad Check out JU Marketplace! | Visit | https://t.me/example | ACME Co.",
     );
   }
   const parts = raw.split("|").map((p) => p.trim());
@@ -291,12 +287,51 @@ bot.command("deletead", async (ctx) => {
   }
 });
 
+// /addadimg <imageUrl> | <text> | [buttonLabel] | [buttonUrl] | [advertiser]
+bot.command("addadimg", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 Not authorized.");
+  }
+  if (!(await checkDBConnection(ctx))) return;
+  const raw = ctx.message.text.replace("/addadimg", "").trim();
+  if (!raw) {
+    return ctx.reply(
+      "Usage: /addadimg <imageUrl> | <text> | [buttonLabel] | [buttonUrl] | [advertiser]",
+    );
+  }
+  const parts = raw.split("|").map((p) => p.trim());
+  const [image, text, buttonLabel, buttonUrl, advertiser] = parts;
+  if (!image || !text)
+    return ctx.reply("❌ Image URL and text are both required.");
+  try {
+    const ad = new Ad({
+      image,
+      text,
+      buttonLabel: buttonLabel || null,
+      buttonUrl: buttonUrl || null,
+      advertiser: advertiser || null,
+    });
+    await ad.save();
+    await bot.telegram.sendPhoto(ctx.from.id, image, {
+      caption: `✅ Ad created with image!
+
+ID: ${ad._id}
+Text: ${text}
+Button: ${buttonLabel ? `${buttonLabel} → ${buttonUrl}` : "none"}
+Advertiser: ${advertiser || "—"}`,
+    });
+  } catch (err) {
+    await ctx.reply("❌ Failed to create ad: " + err.message);
+  }
+});
+
 // ─── Stats (admin) ────────────────────────────────────────────────────────────
 
 bot.command("stats", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 You are not authorized to access statistics.");
   }
+  if (!(await checkDBConnection(ctx))) return;
 
   try {
     const loadingMsg = await ctx.reply("📊 Gathering statistics...");
