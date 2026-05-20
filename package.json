@@ -1,6 +1,6 @@
 {
   "name": "julostandfound",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Jimma University Lost & Found Telegram Bot",
   "main": "deploy.js",
   "type": "commonjs",
