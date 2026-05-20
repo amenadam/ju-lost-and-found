@@ -287,7 +287,9 @@ async function handleMyPosts(ctx) {
 
 async function handleDeletePost(ctx) {
   try {
-    await ctx.answerCbQuery();
+    // Acknowledge the button tap immediately so Telegram removes the spinner
+    await ctx.answerCbQuery("⏳ Deleting...");
+
     const data = ctx.callbackQuery.data;
 
     // data format: delete_post_lost_<id>  or  delete_post_found_<id>
@@ -302,31 +304,57 @@ async function handleDeletePost(ctx) {
     });
 
     if (!item) {
-      await ctx.answerCbQuery("❌ Post not found or already deleted.", {
-        show_alert: true,
-      });
+      // Edit the post row message so the button disappears
+      try {
+        await ctx.editMessageText("❌ Post not found or already deleted.");
+      } catch (_) {}
+      await ctx.reply("❌ Post not found or already deleted.", mainMenu());
       return;
     }
 
-    // Delete from the Telegram channel if we have the message_id
+    // Delete from the Telegram channel
+    let channelDeleted = false;
     if (item.channelMessageId && item.channelName) {
       try {
         await botInstance.telegram.deleteMessage(
           item.channelName,
           item.channelMessageId,
         );
+        channelDeleted = true;
       } catch (err) {
-        // Message may already be gone — not fatal
         console.warn("Could not delete channel message:", err.message);
+        // Message may have already been deleted by an admin — still remove from DB
       }
     }
 
     await Model.deleteOne({ _id: itemId });
 
-    await ctx.editMessageText(`✅ Post deleted successfully.`);
+    // Replace the inline-keyboard message with a confirmation so the button disappears
+    try {
+      await ctx.editMessageText("✅ Deleted.");
+    } catch (_) {}
+
+    // Always send a plain reply so the result is clearly visible in chat
+    const label =
+      item.itemType === "ID" ? item.studentIdNumber : item.description;
+    await ctx.reply(
+      `✅ Post deleted successfully!\n\n` +
+        `📌 Type: ${item.itemType}\n` +
+        `📝 ${item.itemType === "ID" ? "ID" : "Description"}: ${label}\n` +
+        (channelDeleted
+          ? `🗑 Also removed from the channel.`
+          : `ℹ️ Could not remove from the channel (may have already been deleted by an admin).`),
+      mainMenu(),
+    );
   } catch (error) {
     console.error("handleDeletePost error:", error);
-    await ctx.reply("❌ Failed to delete the post. Please try again.");
+    try {
+      await ctx.editMessageText("❌ Failed to delete.");
+    } catch (_) {}
+    await ctx.reply(
+      "❌ Failed to delete the post. Please try again.",
+      mainMenu(),
+    );
   }
 }
 
