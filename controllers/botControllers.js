@@ -7,6 +7,7 @@ const { checkDBConnection } = require("../utils/db");
 const { postToChannel } = require("../utils/channel");
 const { version } = require("../package.json");
 const { maybeShowAd } = require("../utils/ads");
+const bot = require("../api/bot");
 
 let botInstance = null;
 
@@ -293,7 +294,7 @@ async function handleMyPosts(ctx) {
 async function handleDeletePost(ctx) {
   try {
     // Acknowledge the button tap immediately so Telegram removes the spinner
-    await ctx.answerCbQuery("⏳ Deleting...");
+    let msg = await ctx.reply("⏳ Deleting... Please wait.");
 
     const data = ctx.callbackQuery.data;
 
@@ -352,7 +353,9 @@ async function handleDeletePost(ctx) {
         console.warn("editMessageText warning:", editErr.message);
       }
     }
-
+    await botInstance.telegram
+      .deleteMessage(ctx.chat.id, msg.message_id)
+      .catch(() => {});
     // Always send a plain reply — this is the guaranteed visible result
     await ctx.reply(
       `✅ Post deleted successfully!\n\n` +
