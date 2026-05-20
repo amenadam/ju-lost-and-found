@@ -99,11 +99,94 @@ async function handleMyProfile(ctx) {
   }
 
   await ctx.reply(
-    `👤 Profile:\nName: ${user.fullName}\nStudent ID: ${user.studentId}\nYear: ${user.currentYear}\nPhone: ${user.phoneNumber}\nStatus: ${
-      user.verified ? "✅ Verified" : "❌ Not Verified"
-    }\n\nContact @aminadam_solomon to edit profile`,
+    `👤 Your Profile:\n\n` +
+      `📛 Name: ${user.fullName}\n` +
+      `🎓 Student ID: ${user.studentId}\n` +
+      `📅 Year: ${user.currentYear}\n` +
+      `📞 Phone: ${user.phoneNumber}\n` +
+      `✅ Status: ${user.verified ? "Verified" : "Not Verified"}`,
     Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
   );
+}
+
+// ─── Edit Profile ─────────────────────────────────────────────────────────────
+
+async function handleEditProfile(ctx) {
+  if (!(await checkDBConnection(ctx))) return;
+
+  const user = await User.findOne({ telegramId: ctx.from.id });
+  if (!user) {
+    await ctx.reply("Please register first using /start", mainMenu());
+    return;
+  }
+
+  await ctx.reply(
+    "What would you like to edit?",
+    Markup.inlineKeyboard([
+      [Markup.button.callback("📛 Full Name", "edit_field_fullName")],
+      [Markup.button.callback("📅 Current Year", "edit_field_currentYear")],
+      [Markup.button.callback("📞 Phone Number", "edit_field_phoneNumber")],
+      [Markup.button.callback("❌ Cancel", "edit_field_cancel")],
+    ]),
+  );
+}
+
+async function handleEditFieldCallback(ctx) {
+  try {
+    await ctx.answerCbQuery();
+    const field = ctx.callbackQuery.data.replace("edit_field_", "");
+
+    if (field === "cancel") {
+      await ctx.editMessageText("Edit cancelled.");
+      return;
+    }
+
+    const labels = {
+      fullName: "full name",
+      currentYear: "current year (e.g. 2nd Year)",
+      phoneNumber: "phone number",
+    };
+
+    if (!labels[field]) {
+      await ctx.reply("Unknown field.", mainMenu());
+      return;
+    }
+
+    ctx.session.editingField = field;
+    await ctx.editMessageText(`Please enter your new ${labels[field]}:`);
+  } catch (err) {
+    console.error("handleEditFieldCallback error:", err);
+    await ctx.reply("❌ Something went wrong. Please try again.");
+  }
+}
+
+async function handleEditFieldInput(ctx) {
+  const field = ctx.session.editingField;
+  const value = ctx.message.text.trim();
+
+  const allowed = ["fullName", "currentYear", "phoneNumber"];
+  if (!field || !allowed.includes(field)) return false; // not in edit mode
+
+  try {
+    await User.updateOne({ telegramId: ctx.from.id }, { [field]: value });
+    ctx.session.editingField = null;
+
+    const labels = {
+      fullName: "Full name",
+      currentYear: "Current year",
+      phoneNumber: "Phone number",
+    };
+
+    await ctx.reply(
+      `✅ ${labels[field]} updated successfully!`,
+      Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
+    );
+    return true;
+  } catch (err) {
+    console.error("handleEditFieldInput error:", err);
+    await ctx.reply("❌ Failed to update. Please try again.");
+    return true;
+  }
 }
 
 // ─── My Posts ────────────────────────────────────────────────────────────────
@@ -121,15 +204,33 @@ async function handleMyPosts(ctx) {
     const lostReports = await LostItem.find({ telegramId: ctx.from.id });
     const foundReports = await FoundItem.find({ telegramId: ctx.from.id });
 
-    if (lostReports.length === 0 && foundReports.length === 0) {
+    const totalPosts = lostReports.length + foundReports.length;
+    if (totalPosts === 0) {
       await ctx.reply("You have no posts yet!", mainMenu());
       return;
     }
 
-    if (lostReports.length > 0) {
-      await ctx.reply("📌 Your Lost Reports:");
-      for (let i = 0; i < lostReports.length; i++) {
-        const item = lostReports[i];
+    // Separate deletable (have channelMessageId) from old posts
+    const deletableLost = lostReports.filter((i) => i.channelMessageId);
+    const oldLost = lostReports.filter((i) => !i.channelMessageId);
+    const deletableFound = foundReports.filter((i) => i.channelMessageId);
+    const oldFound = foundReports.filter((i) => !i.channelMessageId);
+
+    const hasDeletable = deletableLost.length > 0 || deletableFound.length > 0;
+    const hasOld = oldLost.length > 0 || oldFound.length > 0;
+
+    if (!hasDeletable && hasOld) {
+      await ctx.reply(
+        `You have ${totalPosts} post(s) but they were created before delete support was added, so they can't be removed from the channel.`,
+        mainMenu(),
+      );
+      return;
+    }
+
+    if (deletableLost.length > 0) {
+      await ctx.reply("📌 Your Lost Reports (tap to delete):");
+      for (let i = 0; i < deletableLost.length; i++) {
+        const item = deletableLost[i];
         const label =
           item.itemType === "ID" ? item.studentIdNumber : item.description;
         await ctx.reply(
@@ -137,22 +238,19 @@ async function handleMyPosts(ctx) {
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                "🗑 Delete this post",
+                "🗑 Delete post",
                 `delete_post_lost_${item._id}`,
               ),
             ],
           ]),
         );
       }
-    } else {
-      await ctx.reply("No lost items reported yet.");
     }
 
-    if (foundReports.length > 0) {
-      await ctx.reply("📦 Your Found Reports:");
-      for (let i = 0; i < foundReports.length; i++) {
-        const item = foundReports[i];
-        // FIX: was using lostReports[i].description for found items
+    if (deletableFound.length > 0) {
+      await ctx.reply("📦 Your Found Reports (tap to delete):");
+      for (let i = 0; i < deletableFound.length; i++) {
+        const item = deletableFound[i];
         const label =
           item.itemType === "ID" ? item.studentIdNumber : item.description;
         await ctx.reply(
@@ -160,19 +258,28 @@ async function handleMyPosts(ctx) {
           Markup.inlineKeyboard([
             [
               Markup.button.callback(
-                "🗑 Delete this post",
+                "🗑 Delete post",
                 `delete_post_found_${item._id}`,
               ),
             ],
           ]),
         );
       }
-    } else {
-      await ctx.reply("No found items reported yet.");
+    }
+
+    // Inform about old posts that can't be deleted
+    const oldCount = oldLost.length + oldFound.length;
+    if (oldCount > 0) {
+      await ctx.reply(
+        `ℹ️ You also have ${oldCount} older post(s) that were made before delete support was added. Those can't be removed from the channel.`,
+      );
     }
   } catch (error) {
     console.error("handleMyPosts error:", error);
-    await ctx.reply("❌ Error getting posts: " + (error?.message || ""), mainMenu());
+    await ctx.reply(
+      "❌ Error getting posts: " + (error?.message || ""),
+      mainMenu(),
+    );
   }
 }
 
@@ -216,9 +323,7 @@ async function handleDeletePost(ctx) {
 
     await Model.deleteOne({ _id: itemId });
 
-    await ctx.editMessageText(
-      `✅ Post deleted successfully.`,
-    );
+    await ctx.editMessageText(`✅ Post deleted successfully.`);
   } catch (error) {
     console.error("handleDeletePost error:", error);
     await ctx.reply("❌ Failed to delete the post. Please try again.");
@@ -250,7 +355,9 @@ async function handleItemReporting(ctx) {
     if (!["ID", "Phone", "Bag", "Other"].includes(itemType)) {
       await ctx.reply(
         "Please choose one of the options: ID, Phone, Bag, Other",
-        Markup.keyboard([["ID", "Phone", "Bag", "Other"]]).resize().oneTime(),
+        Markup.keyboard([["ID", "Phone", "Bag", "Other"]])
+          .resize()
+          .oneTime(),
       );
       return;
     }
@@ -317,10 +424,42 @@ function computeMatchScore(existingItem, newItem) {
 
   // Extract meaningful tokens (>= 3 chars, not stopwords)
   const STOPWORDS = new Set([
-    "the", "and", "was", "for", "are", "but", "not", "you", "all",
-    "can", "her", "was", "one", "our", "out", "day", "get", "has",
-    "him", "his", "how", "its", "let", "may", "men", "new", "now",
-    "old", "see", "two", "who", "boy", "did", "she", "too", "use",
+    "the",
+    "and",
+    "was",
+    "for",
+    "are",
+    "but",
+    "not",
+    "you",
+    "all",
+    "can",
+    "her",
+    "was",
+    "one",
+    "our",
+    "out",
+    "day",
+    "get",
+    "has",
+    "him",
+    "his",
+    "how",
+    "its",
+    "let",
+    "may",
+    "men",
+    "new",
+    "now",
+    "old",
+    "see",
+    "two",
+    "who",
+    "boy",
+    "did",
+    "she",
+    "too",
+    "use",
   ]);
 
   const tokenize = (str) =>
@@ -635,7 +774,8 @@ async function completeItemReport(ctx) {
     if (
       reporting.type === "found" &&
       reporting.itemType === "ID" &&
-      reporting.description.trim().toUpperCase() === user.studentId.toUpperCase()
+      reporting.description.trim().toUpperCase() ===
+        user.studentId.toUpperCase()
     ) {
       await ctx.reply("Wait... you found your own ID? 😂", mainMenu());
       ctx.session.reporting = null;
@@ -712,6 +852,9 @@ module.exports = {
   handleReportLostItem,
   handleReportFoundItem,
   handleMyProfile,
+  handleEditProfile,
+  handleEditFieldCallback,
+  handleEditFieldInput,
   handleSearchIDs,
   handleItemReporting,
   handleSearchFunctionality,

@@ -8,6 +8,9 @@ const {
   handleReportLostItem,
   handleReportFoundItem,
   handleMyProfile,
+  handleEditProfile,
+  handleEditFieldCallback,
+  handleEditFieldInput,
   handleSearchIDs,
   handleItemReporting,
   handleSearchFunctionality,
@@ -306,6 +309,11 @@ bot.action(/^delete_post_(lost|found)_/, async (ctx) => {
   await handleDeletePost(ctx);
 });
 
+// Edit profile field selection
+bot.action(/^edit_field_/, async (ctx) => {
+  await handleEditFieldCallback(ctx);
+});
+
 bot.action("joined_check", async (ctx) => {
   try {
     const userId = ctx.from.id;
@@ -491,6 +499,12 @@ bot.on("text", async (ctx) => {
       return;
     }
 
+    // Profile field editing flow
+    if (ctx.session.editingField) {
+      await handleEditFieldInput(ctx);
+      return;
+    }
+
     // Menu options
     switch (ctx.message.text) {
       case "📌 Report Lost Item":
@@ -509,7 +523,7 @@ bot.on("text", async (ctx) => {
         await handleMyProfile(ctx);
         break;
       case "Edit Profile":
-        await ctx.reply("Working on it!", mainMenu());
+        await handleEditProfile(ctx);
         break;
       case "My Posts":
         await handleMyPosts(ctx);
