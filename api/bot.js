@@ -3,6 +3,7 @@ const User = require("../models/User");
 
 const { version } = require("../package.json");
 const { checkDBConnection } = require("../utils/db");
+const { maybeShowAd } = require("../utils/ads");
 const Ad = require("../models/Ad");
 const {
   handelHelp,
