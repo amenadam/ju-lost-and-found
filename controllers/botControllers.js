@@ -3,62 +3,58 @@ const FoundItem = require("../models/FoundItem");
 const User = require("../models/User");
 
 const { Markup } = require("telegraf");
-
 const { checkDBConnection } = require("../utils/db");
 const { postToChannel } = require("../utils/channel");
+const { version } = require("../package.json");
 
 let botInstance = null;
 
 function setBotInstance(bot) {
   botInstance = bot;
 }
+
 function mainMenu() {
   return Markup.keyboard([
     ["📌 Report Lost Item", "📦 Report Found Item"],
-    //["🔍 Search Lost/Found IDs"],
     ["ℹ️ My Profile"],
     ["❓ Help"],
   ]).resize();
 }
 
-const { version } = require("../package.json");
-
 function skipMenu() {
   return Markup.keyboard([["skip"]]).resize();
 }
 
+// ─── Help ────────────────────────────────────────────────────────────────────
+
 async function handelHelp(ctx) {
   await ctx.reply(`Need help? Here's how I work:
-  
-  How to Use: You can report lost/found items. All data is user-generated.
-  
-  Safety Tips:
-  Always arrange to meet in a public, safe place like a department office or the library for handovers.
-  Verify ownership by asking for specific details about the item (e.g., "What was inside the wallet?" or "What color was the phone case?").
-  
-  Be respectful and punctual when communicating with others.
-  
-  What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often best to drop them at the relevant department office or the Registrar. For wallets with money, consider handing them to security.
-  
-  
-  
-  Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
 
-  v${version}
-  
-  Powered by @JUStudentsNetwork`);
+How to Use: You can report lost/found items. All data is user-generated.
+
+Safety Tips:
+Always arrange to meet in a public, safe place like a department office or the library for handovers.
+Verify ownership by asking for specific details about the item (e.g., "What was inside the wallet?" or "What color was the phone case?").
+
+Be respectful and punctual when communicating with others.
+
+What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often best to drop them at the relevant department office or the Registrar. For wallets with money, consider handing them to security.
+
+Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
+
+v${version}
+
+Powered by @JUStudentsNetwork`);
 }
-// Handle Report Lost Item
+
+// ─── Report Lost Item ─────────────────────────────────────────────────────────
+
 async function handleReportLostItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
     return;
   }
 
@@ -71,17 +67,14 @@ async function handleReportLostItem(ctx) {
   );
 }
 
-// Handle Report Found Item
+// ─── Report Found Item ────────────────────────────────────────────────────────
+
 async function handleReportFoundItem(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
     return;
   }
 
@@ -94,43 +87,26 @@ async function handleReportFoundItem(ctx) {
   );
 }
 
-// Handle My Profile
+// ─── My Profile ──────────────────────────────────────────────────────────────
+
 async function handleMyProfile(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start", mainMenu());
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
     return;
   }
+
   await ctx.reply(
-    `👤 Profile:\nName: ${user.fullName}\nStudent ID: ${
-      user.studentId
-    }\nYear: ${user.currentYear}\nPhone: ${user.phoneNumber}\nStatus: ${
+    `👤 Profile:\nName: ${user.fullName}\nStudent ID: ${user.studentId}\nYear: ${user.currentYear}\nPhone: ${user.phoneNumber}\nStatus: ${
       user.verified ? "✅ Verified" : "❌ Not Verified"
-    }
-      \nContact @aminadam_solomon to edit profile`,
+    }\n\nContact @aminadam_solomon to edit profile`,
     Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
   );
 }
 
-async function handleProfileChange(ctx, data) {
-  if (!(await checkDBConnection(ctx))) return;
-
-  const user = await User.findOne({ telegramId: ctx.from.id });
-  if (!user) {
-    await ctx.reply("Please register first using /start", mainMenu());
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
-    return;
-  }
-}
+// ─── My Posts ────────────────────────────────────────────────────────────────
 
 async function handleMyPosts(ctx) {
   if (!(await checkDBConnection(ctx))) return;
@@ -138,58 +114,125 @@ async function handleMyPosts(ctx) {
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start", mainMenu());
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
     return;
   }
 
   try {
-    let lostReports = await LostItem.find({ telegramId: ctx?.from.id });
-    if (!lostReports || lostReports.length == 0) {
-      lostReports = [];
-    }
-    if (lostReports.length > 0) {
-      await ctx.reply("Your Lost reports");
-      for (let i = 0; i < lostReports.length; i++) {
-        await ctx.reply(
-          `${i + 1}. ${lostReports[i].itemType} - ${lostReports[i].itemType == "ID" ? lostReports[i].studentIdNumber : lostReports[i].description}`,
-        );
-      }
-    } else {
-      await ctx.reply("No Lost Reported yet!");
+    const lostReports = await LostItem.find({ telegramId: ctx.from.id });
+    const foundReports = await FoundItem.find({ telegramId: ctx.from.id });
+
+    if (lostReports.length === 0 && foundReports.length === 0) {
+      await ctx.reply("You have no posts yet!", mainMenu());
+      return;
     }
 
-    let foundReports = await FoundItem.find({ telegramId: ctx?.from.id });
-    if (!foundReports || foundReports.length == 0) {
-      foundReports = [];
-    }
-    if (foundReports.length > 0) {
-      await ctx.reply("Your Lost reports");
-      for (let i = 0; i < foundReports.length; i++) {
+    if (lostReports.length > 0) {
+      await ctx.reply("📌 Your Lost Reports:");
+      for (let i = 0; i < lostReports.length; i++) {
+        const item = lostReports[i];
+        const label =
+          item.itemType === "ID" ? item.studentIdNumber : item.description;
         await ctx.reply(
-          `${i + 1}. ${foundReports[i].itemType} - ${foundReports[i].itemType == "ID" ? foundReports[i].studentIdNumber : lostReports[i].description}`,
+          `${i + 1}. ${item.itemType} — ${label}`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "🗑 Delete this post",
+                `delete_post_lost_${item._id}`,
+              ),
+            ],
+          ]),
         );
       }
     } else {
-      await ctx.reply("No Found Reported Yet!");
+      await ctx.reply("No lost items reported yet.");
+    }
+
+    if (foundReports.length > 0) {
+      await ctx.reply("📦 Your Found Reports:");
+      for (let i = 0; i < foundReports.length; i++) {
+        const item = foundReports[i];
+        // FIX: was using lostReports[i].description for found items
+        const label =
+          item.itemType === "ID" ? item.studentIdNumber : item.description;
+        await ctx.reply(
+          `${i + 1}. ${item.itemType} — ${label}`,
+          Markup.inlineKeyboard([
+            [
+              Markup.button.callback(
+                "🗑 Delete this post",
+                `delete_post_found_${item._id}`,
+              ),
+            ],
+          ]),
+        );
+      }
+    } else {
+      await ctx.reply("No found items reported yet.");
     }
   } catch (error) {
-    await ctx.reply("Error getting posts", error?.message || "");
+    console.error("handleMyPosts error:", error);
+    await ctx.reply("❌ Error getting posts: " + (error?.message || ""), mainMenu());
   }
 }
-// Handle Search IDs
+
+// ─── Delete Post ──────────────────────────────────────────────────────────────
+
+async function handleDeletePost(ctx) {
+  try {
+    await ctx.answerCbQuery();
+    const data = ctx.callbackQuery.data;
+
+    // data format: delete_post_lost_<id>  or  delete_post_found_<id>
+    const parts = data.split("_"); // ["delete","post","lost/found","<id>"]
+    const itemType = parts[2]; // "lost" or "found"
+    const itemId = parts[3];
+
+    const Model = itemType === "lost" ? LostItem : FoundItem;
+    const item = await Model.findOne({
+      _id: itemId,
+      telegramId: ctx.from.id, // only owner can delete
+    });
+
+    if (!item) {
+      await ctx.answerCbQuery("❌ Post not found or already deleted.", {
+        show_alert: true,
+      });
+      return;
+    }
+
+    // Delete from the Telegram channel if we have the message_id
+    if (item.channelMessageId && item.channelName) {
+      try {
+        await botInstance.telegram.deleteMessage(
+          item.channelName,
+          item.channelMessageId,
+        );
+      } catch (err) {
+        // Message may already be gone — not fatal
+        console.warn("Could not delete channel message:", err.message);
+      }
+    }
+
+    await Model.deleteOne({ _id: itemId });
+
+    await ctx.editMessageText(
+      `✅ Post deleted successfully.`,
+    );
+  } catch (error) {
+    console.error("handleDeletePost error:", error);
+    await ctx.reply("❌ Failed to delete the post. Please try again.");
+  }
+}
+
+// ─── Search IDs ───────────────────────────────────────────────────────────────
+
 async function handleSearchIDs(ctx) {
   if (!(await checkDBConnection(ctx))) return;
 
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
     await ctx.reply("Please register first using /start");
-    const id = ctx.from.id;
-    if (sessionData.has(id)) {
-      sessionData.delete(id);
-    }
     return;
   }
 
@@ -197,27 +240,32 @@ async function handleSearchIDs(ctx) {
   await ctx.reply("Please enter the Student ID number to search for:");
 }
 
-// Handle Item Reporting
+// ─── Item Reporting (step machine) ───────────────────────────────────────────
+
 async function handleItemReporting(ctx) {
   const step = ctx.session.reporting.step;
+
   if (step === "item_type") {
     const itemType = ctx.message.text;
-    if (["Phone", "Bag", "Other"].includes(itemType)) {
-      ctx.session.reporting.itemType = itemType;
-      ctx.session.reporting.step = "description";
-      await ctx.reply("Please describe the item:");
+    if (!["ID", "Phone", "Bag", "Other"].includes(itemType)) {
+      await ctx.reply(
+        "Please choose one of the options: ID, Phone, Bag, Other",
+        Markup.keyboard([["ID", "Phone", "Bag", "Other"]]).resize().oneTime(),
+      );
+      return;
     }
-
-    if (["ID"].includes(itemType)) {
-      ctx.session.reporting.itemType = itemType;
-      ctx.session.reporting.step = "description";
-      await ctx.reply("Please enter ID no.:");
+    ctx.session.reporting.itemType = itemType;
+    ctx.session.reporting.step = "description";
+    if (itemType === "ID") {
+      await ctx.reply("Please enter the ID number:");
+    } else {
+      await ctx.reply("Please describe the item:");
     }
   } else if (step === "description") {
     ctx.session.reporting.description = ctx.message.text;
     ctx.session.reporting.step = "photo";
     await ctx.reply(
-      'Please upload a photo of the item (or send "skip" to continue without photo):',
+      'Please upload a photo of the item (or send "skip" to continue without a photo):',
       skipMenu(),
     );
   } else if (step === "photo" && ctx.message.text?.toLowerCase() === "skip") {
@@ -225,9 +273,10 @@ async function handleItemReporting(ctx) {
   }
 }
 
-// Handle Search Functionality
+// ─── Search Functionality ─────────────────────────────────────────────────────
+
 async function handleSearchFunctionality(ctx) {
-  const idNumber = ctx.message.text;
+  const idNumber = ctx.message.text.trim().toUpperCase();
   const lost = await LostItem.find({ studentIdNumber: idNumber });
   const found = await FoundItem.find({ studentIdNumber: idNumber });
   let message = `🔍 Search results for ID ${idNumber}:\n\n`;
@@ -251,73 +300,95 @@ async function handleSearchFunctionality(ctx) {
   ctx.session.searching = false;
 }
 
+// ─── Matching ─────────────────────────────────────────────────────────────────
+// Stronger matching: ID → exact match; other types → keyword union + item type.
+// Returns a score so we can rank results.
+
+function computeMatchScore(existingItem, newItem) {
+  if (existingItem.itemType !== newItem.itemType) return 0;
+
+  if (newItem.itemType === "ID") {
+    // Exact ID match
+    return existingItem.studentIdNumber === newItem.studentIdNumber ? 100 : 0;
+  }
+
+  const descA = (existingItem.description || "").toLowerCase();
+  const descB = (newItem.description || "").toLowerCase();
+
+  // Extract meaningful tokens (>= 3 chars, not stopwords)
+  const STOPWORDS = new Set([
+    "the", "and", "was", "for", "are", "but", "not", "you", "all",
+    "can", "her", "was", "one", "our", "out", "day", "get", "has",
+    "him", "his", "how", "its", "let", "may", "men", "new", "now",
+    "old", "see", "two", "who", "boy", "did", "she", "too", "use",
+  ]);
+
+  const tokenize = (str) =>
+    str
+      .split(/[\s,.\-_/()]+/)
+      .map((w) => w.replace(/[^a-z0-9]/g, ""))
+      .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+
+  const tokensA = new Set(tokenize(descA));
+  const tokensB = new Set(tokenize(descB));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+
+  let hits = 0;
+  for (const t of tokensB) {
+    if (tokensA.has(t)) hits++;
+  }
+
+  // Jaccard-style score scaled to 0-100
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return Math.round((hits / union) * 100);
+}
+
 async function checkForMatches(newItem, itemType, ctx) {
   try {
     const oppositeModel = itemType === "lost" ? FoundItem : LostItem;
     const oppositeType = itemType === "lost" ? "found" : "lost";
 
-    let query = {};
-
-    if (newItem.itemType === "ID") {
-      query = {
-        itemType: "ID",
-        studentIdNumber: newItem.studentIdNumber,
-        matched: false,
-      };
-    } else {
-      const keywords = newItem.description
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((word) => word.length > 3)
-        .slice(0, 5);
-
-      const keywordPatterns = keywords.map(
-        (keyword) => new RegExp(keyword, "i"),
-      );
-
-      query = {
-        itemType: newItem.itemType,
-        matched: false,
-        $or: keywordPatterns.map((pattern) => ({ description: pattern })),
-      };
-    }
-
-    const potentialMatches = await oppositeModel
-      .find(query)
+    // Broad query: same itemType and not yet matched
+    const candidates = await oppositeModel
+      .find({ itemType: newItem.itemType, matched: false })
       .populate("userId")
-      .limit(10);
+      .limit(50);
 
-    if (potentialMatches.length === 0) return [];
+    if (candidates.length === 0) return [];
 
-    await notifyReporterAboutMatches(
-      newItem,
-      potentialMatches,
-      oppositeType,
-      ctx,
-    );
+    // Score and filter
+    const MIN_SCORE = newItem.itemType === "ID" ? 100 : 20;
+    const scored = candidates
+      .map((c) => ({ item: c, score: computeMatchScore(c, newItem) }))
+      .filter((x) => x.score >= MIN_SCORE)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
 
-    await notifyExistingOwners(newItem, potentialMatches, itemType, ctx);
+    if (scored.length === 0) return [];
 
-    return potentialMatches;
+    const matches = scored.map((x) => x.item);
+
+    await notifyReporterAboutMatches(newItem, scored, oppositeType, ctx);
+    await notifyExistingOwners(newItem, matches, itemType, ctx);
+
+    return matches;
   } catch (error) {
     console.error("Error checking for matches:", error);
     return [];
   }
 }
 
-async function notifyReporterAboutMatches(newItem, matches, oppositeType, ctx) {
+async function notifyReporterAboutMatches(newItem, scored, oppositeType, ctx) {
   try {
-    const reporter = await User.findOne({ telegramId: ctx.from.id });
-    if (!reporter) return;
-
     let message = `<b>🔍 Potential ${oppositeType.toUpperCase()} Item Matches Found!</b>\n\n`;
-    message += `We found ${matches.length} potential ${oppositeType} item(s) that might match your ${newItem.itemType}:\n\n`;
+    message += `We found ${scored.length} potential ${oppositeType} item(s) that might match your ${newItem.itemType}:\n\n`;
 
-    for (let i = 0; i < Math.min(matches.length, 3); i++) {
-      const match = matches[i];
+    for (let i = 0; i < Math.min(scored.length, 3); i++) {
+      const { item: match, score } = scored[i];
       const matchUser = match.userId;
 
-      message += `<b>Match #${i + 1}</b>\n`;
+      message += `<b>Match #${i + 1}</b> (${score}% similarity)\n`;
       message += `📌 Type: ${match.itemType}\n`;
 
       if (match.itemType === "ID") {
@@ -338,8 +409,8 @@ async function notifyReporterAboutMatches(newItem, matches, oppositeType, ctx) {
       message += `📅 Reported: ${new Date(match.createdAt).toLocaleDateString()}\n\n`;
     }
 
-    if (matches.length > 3) {
-      message += `<b>...and ${matches.length - 3} more matches</b>\n\n`;
+    if (scored.length > 3) {
+      message += `<b>...and ${scored.length - 3} more matches</b>\n\n`;
     }
 
     message += `<b>Next Steps:</b>\n`;
@@ -361,8 +432,7 @@ async function notifyExistingOwners(newItem, matches, itemType, ctx) {
 
     for (const match of matches) {
       const existingOwner = match.userId;
-
-      if (existingOwner.telegramId === ctx.from.id) continue;
+      if (!existingOwner || existingOwner.telegramId === ctx.from.id) continue;
 
       let message = `<b>🎯 New Potential ${itemType.toUpperCase()} Item Match Found!</b>\n\n`;
       message += `A new <b>${itemType}</b> item has been reported that might match your ${match.itemType}:\n\n`;
@@ -383,30 +453,35 @@ async function notifyExistingOwners(newItem, matches, itemType, ctx) {
         message += `📞 Phone: ${newItemReporter.phoneNumber}\n`;
       }
       message += `📅 Reported: ${new Date(newItem.createdAt).toLocaleDateString()}\n\n`;
-
       message += `<b>Your ${match.itemType} Item:</b>\n`;
       message += `📝 Description: ${match.description}\n\n`;
-
       message += `<b>Next Steps:</b>\n`;
-      message += `1. Contact the person who reported the ${itemType} item\n`;
+      message += `1. Contact the reporter above\n`;
       message += `2. Verify ownership by asking for specific details\n`;
       message += `3. Arrange a safe meetup location\n\n`;
       message += `<i>⚠️ Always meet in a public place and verify ownership!</i>`;
 
       if (botInstance) {
-        await botInstance.telegram.sendMessage(
-          existingOwner.telegramId,
-          message,
-          {
-            parse_mode: "HTML",
-          },
-        );
+        try {
+          await botInstance.telegram.sendMessage(
+            existingOwner.telegramId,
+            message,
+            { parse_mode: "HTML" },
+          );
+        } catch (err) {
+          console.warn(
+            `Could not notify user ${existingOwner.telegramId}:`,
+            err.message,
+          );
+        }
       }
     }
   } catch (error) {
     console.error("Error notifying existing owners:", error);
   }
 }
+
+// ─── Match Callbacks ──────────────────────────────────────────────────────────
 
 async function handleMatchCallbacks(ctx) {
   try {
@@ -439,37 +514,17 @@ async function showAllMatches(ctx, itemId, itemType) {
     }
 
     const oppositeModel = itemType === "lost" ? FoundItem : LostItem;
-    const oppositeType = itemType === "lost" ? "found" : "lost";
 
-    let query = {};
-    if (originalItem.itemType === "ID") {
-      query = {
-        itemType: "ID",
-        studentIdNumber: originalItem.studentIdNumber,
-        matched: false,
-      };
-    } else {
-      const keywords = originalItem.description
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((word) => word.length > 3)
-        .slice(0, 5);
-
-      const keywordPatterns = keywords.map(
-        (keyword) => new RegExp(keyword, "i"),
-      );
-
-      query = {
-        itemType: originalItem.itemType,
-        matched: false,
-        $or: keywordPatterns.map((pattern) => ({ description: pattern })),
-      };
-    }
-
-    const matches = await oppositeModel
-      .find(query)
+    const candidates = await oppositeModel
+      .find({ itemType: originalItem.itemType, matched: false })
       .populate("userId")
       .sort({ createdAt: -1 });
+
+    const MIN_SCORE = originalItem.itemType === "ID" ? 100 : 20;
+    const matches = candidates
+      .map((c) => ({ item: c, score: computeMatchScore(c, originalItem) }))
+      .filter((x) => x.score >= MIN_SCORE)
+      .sort((a, b) => b.score - a.score);
 
     if (matches.length === 0) {
       await ctx.reply("No matches found at this time.", mainMenu());
@@ -479,10 +534,10 @@ async function showAllMatches(ctx, itemId, itemType) {
     let message = `📋 *All Potential Matches (${matches.length})*\n\n`;
 
     for (let i = 0; i < matches.length; i++) {
-      const match = matches[i];
+      const { item: match, score } = matches[i];
       const matchUser = match.userId;
 
-      message += `*Match #${i + 1}*\n`;
+      message += `*Match #${i + 1}* (${score}% similarity)\n`;
       message += `📌 *Type:* ${match.itemType}\n`;
 
       if (match.itemType === "ID") {
@@ -536,7 +591,6 @@ async function showSingleMatch(ctx, matchId) {
 
     message += `*Description:* ${match.description}\n`;
     message += `*Status:* ${match.matched ? "✅ Matched" : "⏳ Available"}\n\n`;
-
     message += `*Reporter Information:*\n`;
     message += `*Name:* ${matchUser.fullName}\n`;
     if (matchUser.username) {
@@ -551,13 +605,13 @@ async function showSingleMatch(ctx, matchId) {
     await ctx.reply("❌ Error fetching match details.", mainMenu());
   }
 }
-// Helper: Complete item report
+
+// ─── Complete Item Report ─────────────────────────────────────────────────────
+
 async function completeItemReport(ctx) {
   const { reporting } = ctx.session;
   const user = await User.findOne({ telegramId: ctx.from.id });
   if (!user) {
-    const id = ctx.from.id;
-    if (sessionData.has(id)) sessionData.delete(id);
     await ctx.reply("Please register first using /start");
     return;
   }
@@ -570,20 +624,25 @@ async function completeItemReport(ctx) {
       itemType: reporting.itemType,
       description: reporting.description,
       photo: reporting.photo || null,
-      studentIdNumber: user.studentId,
+      studentIdNumber:
+        reporting.itemType === "ID"
+          ? reporting.description.trim().toUpperCase()
+          : user.studentId,
     });
     await item.save();
 
+    // Funny self-find check
     if (
-      reporting.type !== "lost" &&
+      reporting.type === "found" &&
       reporting.itemType === "ID" &&
-      reporting.description.toUpperCase() === user.studentId.toUpperCase()
+      reporting.description.trim().toUpperCase() === user.studentId.toUpperCase()
     ) {
-      ctx.reply("Wait?, you found your own ID😂", mainMenu());
+      await ctx.reply("Wait... you found your own ID? 😂", mainMenu());
       ctx.session.reporting = null;
       return;
     }
-    const message = `${
+
+    const messageText = `${
       reporting.type === "lost" ? `<b>🚨 LOST ITEM</b>` : `<b>🎉 FOUND ITEM</b>`
     }\n\n<b>Type:</b> ${reporting.itemType}\n${
       reporting.itemType === "ID" ? `<b>ID Number</b>` : `<b>Description</b>`
@@ -595,22 +654,35 @@ async function completeItemReport(ctx) {
         : process.env.CHANNEL_FOUND_ITEMS;
 
     if (channelEnv) {
-      await postToChannel(channelEnv, message, reporting.photo, user, ctx);
+      // Store the returned message_id on the item so it can be deleted later
+      const msgId = await postToChannel(
+        channelEnv,
+        messageText,
+        reporting.photo,
+        user,
+        ctx,
+        botInstance,
+      );
+      if (msgId) {
+        item.channelMessageId = msgId;
+        item.channelName = channelEnv;
+        await item.save();
+      }
     }
 
-    if (reporting.itemType === "ID" && reporting.type !== "lost") {
+    // Notify owner if their ID was found
+    if (reporting.itemType === "ID" && reporting.type === "found") {
       const whoseUser = await User.findOne({
-        studentId: reporting.description.toUpperCase(),
+        studentId: reporting.description.trim().toUpperCase(),
       });
-      if (whoseUser) {
-        let contactAddress;
-        if (user.username) {
-          contactAddress = `@${user.username}`;
-        } else {
-          contactAddress = user.phoneNumber;
-        }
-        const message = `🎉 Congrats! Your ID has been found! \n contact ${contactAddress}  `;
-        await bot.telegram.sendMessage(whoseUser.telegramId, message);
+      if (whoseUser && whoseUser.telegramId !== ctx.from.id) {
+        const contactAddress = user.username
+          ? `@${user.username}`
+          : user.phoneNumber;
+        await botInstance.telegram.sendMessage(
+          whoseUser.telegramId,
+          `🎉 Great news! Your ID has been found!\nContact: ${contactAddress}`,
+        );
       }
     }
 
@@ -618,6 +690,7 @@ async function completeItemReport(ctx) {
       `✅ Your ${reporting.type} item has been reported!`,
       mainMenu(),
     );
+
     await checkForMatches(item, reporting.type, ctx);
 
     ctx.session.reporting = null;
@@ -626,6 +699,8 @@ async function completeItemReport(ctx) {
     await ctx.reply("❌ Failed to report item. Please try again.");
   }
 }
+
+// ─── Contact Admin ────────────────────────────────────────────────────────────
 
 async function handleContactAdmin(ctx) {
   ctx.session.contactAdmin = true;
@@ -643,6 +718,7 @@ module.exports = {
   completeItemReport,
   handleContactAdmin,
   handleMatchCallbacks,
+  handleDeletePost,
   setBotInstance,
   handleMyPosts,
 };

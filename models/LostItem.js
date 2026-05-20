@@ -21,7 +21,7 @@ const lostItemSchema = new mongoose.Schema(
       required: true,
     },
     photo: {
-      type: String, // file ID or URL
+      type: String,
       required: false,
     },
     studentIdNumber: {
@@ -37,6 +37,15 @@ const lostItemSchema = new mongoose.Schema(
     matchedWith: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "FoundItem",
+    },
+    // Store the Telegram message_id in the channel so we can delete it later
+    channelMessageId: {
+      type: Number,
+      default: null,
+    },
+    channelName: {
+      type: String,
+      default: null,
     },
     createdAt: {
       type: Date,

@@ -13,23 +13,23 @@ const {
   handleSearchFunctionality,
   completeItemReport,
   handleMatchCallbacks,
+  handleDeletePost,
   setBotInstance,
   handleMyPosts,
 } = require("../controllers/botControllers");
 
-//global variables
-let rawId;
+// ─── Globals ──────────────────────────────────────────────────────────────────
 
-// Debug
 console.log("BOT_TOKEN:", process.env.BOT_TOKEN ? "SET" : "NOT SET");
 console.log("MONGODB_URI:", process.env.MONGODB_URI ? "SET" : "NOT SET");
 
-// Initialize bot
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const bot = new Telegraf(BOT_TOKEN);
 setBotInstance(bot);
-// Registration flow states
+
+// ─── Registration States ──────────────────────────────────────────────────────
+
 const REGISTRATION_STATES = {
   NONE: "none",
   FULL_NAME: "full_name",
@@ -39,11 +39,11 @@ const REGISTRATION_STATES = {
 };
 const REGISTRATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
-// Session management with expiration
+// ─── Session ──────────────────────────────────────────────────────────────────
+
 const sessionData = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
-// Clean up old sessions
 setInterval(
   () => {
     const now = Date.now();
@@ -54,9 +54,8 @@ setInterval(
     }
   },
   5 * 60 * 1000,
-); // Run every 5 minutes
+);
 
-// Session middleware
 bot.use((ctx, next) => {
   const id = ctx.from?.id;
   if (!id) return next();
@@ -73,7 +72,6 @@ bot.use((ctx, next) => {
     });
   }
 
-  // Make sure we're using the data property
   ctx.session = sessionData.get(id).data;
   sessionData.get(id).lastActivity = Date.now();
 
@@ -81,33 +79,27 @@ bot.use((ctx, next) => {
   return next();
 });
 
-// Main menu
+// ─── Menus ────────────────────────────────────────────────────────────────────
+
 function mainMenu() {
   return Markup.keyboard([
     ["📌 Report Lost Item", "📦 Report Found Item"],
-    //["🔍 Search Lost/Found IDs"],
     ["ℹ️ My Profile"],
     ["❓ Help"],
   ]).resize();
 }
 
-// Debug command
+// ─── Commands ─────────────────────────────────────────────────────────────────
+
 bot.command("debug", (ctx) => {
-  console.log("Debug command received");
   ctx.reply(
-    `Bot is working! Your ID: ${ctx.from.id}, Session: ${JSON.stringify(
-      ctx.session,
-    )}`,
+    `Bot is working! Your ID: ${ctx.from.id}, Session: ${JSON.stringify(ctx.session)}`,
   );
 });
 
-// Reset command
 bot.command("reset", (ctx) => {
-  // Clear session
   const id = ctx.from.id;
-  if (sessionData.has(id)) {
-    sessionData.delete(id);
-  }
+  if (sessionData.has(id)) sessionData.delete(id);
   ctx.reply("Session reset. Use /start to begin again.");
 });
 
@@ -124,8 +116,6 @@ Be respectful and punctual when communicating with others.
 
 What to do with valuable items (ID Cards, Wallets): For ID Cards, it's often best to drop them at the relevant department office or the Registrar. For wallets with money, consider handing them to security.
 
-
-
 Contact Admin: For bot errors or suggestions, please message @julostandfoundgroup.
 
 v${version}
@@ -133,7 +123,6 @@ v${version}
 Powered by @JUStudentsNetwork`);
 });
 
-// Start command
 bot.start(async (ctx) => {
   console.log(`Start command from user: ${ctx.from.id}`);
 
@@ -153,18 +142,12 @@ bot.start(async (ctx) => {
       member.status === "kicked" ||
       !member.status
     ) {
-      // User is not a member
       await ctx.reply(
         `❌ You must join our channel to use this bot:\n\n${REQUIRED_CHANNEL}\n\nRestart the bot /start`,
         {
           reply_markup: {
             inline_keyboard: [
-              [
-                {
-                  text: "✅ I've Joined",
-                  callback_data: "joined_check",
-                },
-              ],
+              [{ text: "✅ I've Joined", callback_data: "joined_check" }],
             ],
           },
         },
@@ -177,22 +160,14 @@ bot.start(async (ctx) => {
     return;
   }
 
-  // If user is already registered
   if (user) {
     await ctx.reply(
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu(),
     );
   } else {
-    // Start registration process
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
-
-    console.log(
-      `Starting registration for user: ${userId}, session: ${JSON.stringify(
-        ctx.session,
-      )}`,
-    );
 
     await ctx.reply(
       "👋 Welcome to Jimma University Lost & Found Bot!\n\n" +
@@ -201,58 +176,41 @@ bot.start(async (ctx) => {
     );
   }
 });
+
+// ─── Stats (admin) ────────────────────────────────────────────────────────────
+
 bot.command("stats", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 You are not authorized to access statistics.");
   }
 
   try {
-    // Show loading message
     const loadingMsg = await ctx.reply("📊 Gathering statistics...");
 
-    // Get total users
     const totalUsers = await User.countDocuments({});
-
-    // Get verified users
     const verifiedUsers = await User.countDocuments({ verified: true });
-
-    // Get today's active users (users active in last 24 hours)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const todayActiveUsers = await User.countDocuments({
       lastActivity: { $gte: yesterday },
     });
-
-    // Get users registered today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const usersRegisteredToday = await User.countDocuments({
       createdAt: { $gte: today },
     });
-
-    // Get users registered this week
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const usersRegisteredThisWeek = await User.countDocuments({
       createdAt: { $gte: weekAgo },
     });
-
-    // Get year distribution
     const yearDistribution = await User.aggregate([
-      {
-        $group: {
-          _id: "$currentYear",
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: "$currentYear", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
-
-    // Get username stats
     const usersWithUsername = await User.countDocuments({
       username: { $ne: null, $ne: "" },
     });
 
-    // Get daily growth (last 7 days)
     const dailyGrowth = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
@@ -261,15 +219,12 @@ bot.command("stats", async (ctx) => {
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
-
       const dailyCount = await User.countDocuments({
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       });
-
       const dailyActive = await User.countDocuments({
         lastActivity: { $gte: startOfDay, $lte: endOfDay },
       });
-
       dailyGrowth.push({
         date: date.toISOString().split("T")[0],
         day: date.toLocaleDateString("en-US", { weekday: "short" }),
@@ -278,7 +233,6 @@ bot.command("stats", async (ctx) => {
       });
     }
 
-    // Format statistics message
     let statsMessage = `🤖 *Lost & Found Bot Statistics*\n\n`;
     statsMessage += `📈 *User Statistics:*\n`;
     statsMessage += `├ Total Users: *${totalUsers}*\n`;
@@ -287,7 +241,6 @@ bot.command("stats", async (ctx) => {
     statsMessage += `├ Registered Today: *${usersRegisteredToday}*\n`;
     statsMessage += `├ Registered This Week: *${usersRegisteredThisWeek}*\n`;
     statsMessage += `└ With Username: *${usersWithUsername}* (${Math.round((usersWithUsername / totalUsers) * 100)}%)\n\n`;
-
     statsMessage += `🎓 *Year Distribution:*\n`;
     yearDistribution.forEach((year, index, array) => {
       const isLast = index === array.length - 1;
@@ -296,33 +249,28 @@ bot.command("stats", async (ctx) => {
         totalUsers > 0 ? ((year.count / totalUsers) * 100).toFixed(1) : "0.0";
       statsMessage += `${prefix}${year._id || "Unknown"}: *${year.count}* (${percentage}%)\n`;
     });
-
     statsMessage += `\n📅 *Last 7 Days Activity:*\n`;
     dailyGrowth.forEach((day) => {
       statsMessage += `├ ${day.day}: ${day.registrations} new, ${day.active} active\n`;
     });
-
     statsMessage += `\n📊 *Averages (Last 7 Days):*\n`;
-    const avgRegistrations = (
-      dailyGrowth.reduce((sum, day) => sum + day.registrations, 0) / 7
+    const avgReg = (
+      dailyGrowth.reduce((s, d) => s + d.registrations, 0) / 7
     ).toFixed(1);
-    const avgActive = (
-      dailyGrowth.reduce((sum, day) => sum + day.active, 0) / 7
-    ).toFixed(1);
-    statsMessage += `├ Avg. Daily Registrations: *${avgRegistrations}*\n`;
-    statsMessage += `└ Avg. Daily Active Users: *${avgActive}*\n`;
-
+    const avgAct = (dailyGrowth.reduce((s, d) => s + d.active, 0) / 7).toFixed(
+      1,
+    );
+    statsMessage += `├ Avg. Daily Registrations: *${avgReg}*\n`;
+    statsMessage += `└ Avg. Daily Active Users: *${avgAct}*\n`;
     statsMessage += `\n📅 *Last Updated:* ${new Date().toLocaleString()}\n`;
     statsMessage += `🤖 *Bot Version:* ${version}`;
 
-    // Delete loading message
     try {
       await ctx.deleteMessage(loadingMsg.message_id);
     } catch (err) {
       console.error("Error deleting loading message:", err);
     }
 
-    // Send statistics
     await ctx.replyWithMarkdown(statsMessage, {
       reply_markup: {
         inline_keyboard: [
@@ -342,12 +290,22 @@ bot.command("stats", async (ctx) => {
     await ctx.reply("⚠️ Error gathering statistics: " + error.message);
   }
 });
-bot.action("view_matches_", async (ctx) => {
+
+// ─── Callbacks ────────────────────────────────────────────────────────────────
+
+bot.action(/^view_matches_/, async (ctx) => {
   await handleMatchCallbacks(ctx);
 });
-bot.action("view_match_", async (ctx) => {
+
+bot.action(/^view_match_/, async (ctx) => {
   await handleMatchCallbacks(ctx);
 });
+
+// Delete post — matches delete_post_lost_<id> and delete_post_found_<id>
+bot.action(/^delete_post_(lost|found)_/, async (ctx) => {
+  await handleDeletePost(ctx);
+});
+
 bot.action("joined_check", async (ctx) => {
   try {
     const userId = ctx.from.id;
@@ -369,7 +327,6 @@ bot.action("joined_check", async (ctx) => {
       member.status === "creator"
     ) {
       await ctx.answerCbQuery("✅ Membership confirmed!");
-
       try {
         await ctx.editMessageText(
           "✅ Channel membership verified! Please click the button below to start your registration:",
@@ -380,7 +337,7 @@ bot.action("joined_check", async (ctx) => {
             ),
           ]),
         );
-      } catch (editError) {
+      } catch {
         await ctx.reply(
           "✅ Channel membership verified! Please click the button below to start your registration:",
           Markup.inlineKeyboard([
@@ -402,14 +359,10 @@ bot.action("joined_check", async (ctx) => {
 bot.action("start_registration", async (ctx) => {
   try {
     await ctx.answerCbQuery();
-
-    // Clear any existing session data first
     const userId = ctx.from.id;
-    if (sessionData.has(userId)) {
-      sessionData.delete(userId);
-    }
 
-    // Create a fresh session
+    if (sessionData.has(userId)) sessionData.delete(userId);
+
     sessionData.set(userId, {
       data: {
         registrationState: REGISTRATION_STATES.FULL_NAME,
@@ -420,14 +373,11 @@ bot.action("start_registration", async (ctx) => {
       lastActivity: Date.now(),
     });
 
-    // Update ctx.session with the new session data
     ctx.session = sessionData.get(userId).data;
 
-    // Edit the message to show registration is starting
     try {
       await ctx.editMessageText("📝 Tap /start please!");
-    } catch (editError) {
-      // If editing fails, send a new message
+    } catch {
       await ctx.reply("📝 Tap /start please!");
     }
   } catch (err) {
@@ -435,7 +385,9 @@ bot.action("start_registration", async (ctx) => {
     await ctx.reply("❌ Error starting registration. Please try /start again.");
   }
 });
-// Unified text handler
+
+// ─── Text handler ─────────────────────────────────────────────────────────────
+
 bot.on("text", async (ctx) => {
   console.log(`Received text: "${ctx.message.text}" from user: ${ctx.from.id}`);
   console.log(`Current session state: ${JSON.stringify(ctx.session)}`);
@@ -443,15 +395,12 @@ bot.on("text", async (ctx) => {
   try {
     if (!(await checkDBConnection(ctx))) return;
 
-    // Check for registration timeout
+    // Registration timeout check
     if (
       ctx.session.registrationState &&
       ctx.session.registrationState !== REGISTRATION_STATES.NONE &&
       ctx.session.registrationStart
     ) {
-      console.log(
-        `Registration in progress, state: ${ctx.session.registrationState}`,
-      );
       if (Date.now() - ctx.session.registrationStart > REGISTRATION_TIMEOUT) {
         await ctx.reply(
           "❌ Registration timed out. Please start again with /start",
@@ -467,61 +416,42 @@ bot.on("text", async (ctx) => {
       ctx.session.registrationState &&
       ctx.session.registrationState !== REGISTRATION_STATES.NONE
     ) {
-      console.log(
-        `Processing registration step: ${ctx.session.registrationState}`,
-      );
-
       try {
         const state = ctx.session.registrationState;
         switch (state) {
           case REGISTRATION_STATES.FULL_NAME:
             ctx.session.fullName = ctx.message.text;
             ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
-            console.log(
-              `Set fullName: ${ctx.session.fullName}, moving to student ID`,
-            );
             await ctx.reply("Please enter your Student ID number:");
             break;
 
-          case REGISTRATION_STATES.STUDENT_ID:
-            ctx.session.studentId = ctx.message.text;
-            rawId = ctx.session.studentId.trim().toUpperCase();
+          case REGISTRATION_STATES.STUDENT_ID: {
+            const rawId = ctx.message.text.trim().toUpperCase();
             const idPattern = /^[A-Z]{2}\d{1,6}\/\d{2}$/;
-
             if (!idPattern.test(rawId)) {
               await ctx.reply(
                 "❌ Invalid Student ID format. Example: RU0238/17",
               );
-              ctx.session.registrationState = REGISTRATION_STATES.STUDENT_ID;
               return;
             }
+            ctx.session.studentId = rawId;
             ctx.session.registrationState = REGISTRATION_STATES.CURRENT_YEAR;
-            console.log(
-              `Set studentId: ${ctx.session.studentId}, moving to current year`,
-            );
             await ctx.reply("Please enter your current year (e.g., 2nd Year):");
             break;
+          }
 
           case REGISTRATION_STATES.CURRENT_YEAR:
             ctx.session.currentYear = ctx.message.text;
             ctx.session.registrationState = REGISTRATION_STATES.PHONE_NUMBER;
-            console.log(
-              `Set currentYear: ${ctx.session.currentYear}, moving to phone number`,
-            );
             await ctx.reply("Please enter your phone number:");
             break;
 
-          case REGISTRATION_STATES.PHONE_NUMBER:
-            console.log(
-              `Completing registration with phone: ${ctx.message.text}`,
-            );
+          case REGISTRATION_STATES.PHONE_NUMBER: {
             try {
-              // Validate studentId format
-
               const user = new User({
                 telegramId: ctx.from.id,
                 fullName: ctx.session.fullName,
-                studentId: rawId,
+                studentId: ctx.session.studentId,
                 currentYear: ctx.session.currentYear,
                 phoneNumber: ctx.message.text,
                 username: ctx.from.username,
@@ -529,26 +459,21 @@ bot.on("text", async (ctx) => {
                 idImage: "not_required",
               });
               await user.save();
-
               await ctx.reply("✅ Registration successful!", mainMenu());
 
-              // Clear session data
               ctx.session.registrationState = REGISTRATION_STATES.NONE;
               ctx.session.registrationStart = null;
               delete ctx.session.fullName;
               delete ctx.session.studentId;
               delete ctx.session.currentYear;
-
-              console.log(`Registration completed for user: ${ctx.from.id}`);
             } catch (error) {
               console.error("Registration error:", error);
               await ctx.reply("❌ Registration failed. Please try again.");
             }
-
             break;
+          }
 
           default:
-            console.error(`Unknown registration state: ${state}`);
             await ctx.reply(
               "❌ Registration error. Please start again with /start",
             );
@@ -566,7 +491,7 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Handle menu options
+    // Menu options
     switch (ctx.message.text) {
       case "📌 Report Lost Item":
         await handleReportLostItem(ctx);
@@ -584,49 +509,43 @@ bot.on("text", async (ctx) => {
         await handleMyProfile(ctx);
         break;
       case "Edit Profile":
-        await ctx.reply("Working Onit!", mainMenu());
+        await ctx.reply("Working on it!", mainMenu());
         break;
       case "My Posts":
         await handleMyPosts(ctx);
         break;
+      case "Back":
+        await ctx.reply("Main menu:", mainMenu());
+        break;
       default:
-        // Item reporting flow
         if (ctx.session.reporting?.step) {
           await handleItemReporting(ctx);
           return;
         }
-
-        // Search functionality
         if (ctx.session.searching) {
           await handleSearchFunctionality(ctx);
           return;
         }
-
-        if (ctx.session.contactAdmin) {
-          const message = ctx.message.text;
-        }
-
-        // If none of the above, show main menu
         await ctx.reply(
-          "Please select an option from the menu: \ntap /reset if bot not working properly",
+          "Please select an option from the menu.\nTap /reset if the bot is not working properly.",
           mainMenu(),
         );
     }
   } catch (err) {
-    await console.error(err.message || err);
+    console.error(err.message || err);
     await ctx.reply(
-      `❌ An error occurred. Please tap /reset and try again later. ${err?.message}`,
+      `❌ An error occurred. Please tap /reset and try again. ${err?.message || ""}`,
       mainMenu(),
     );
   }
 });
 
-// Unified photo handler
+// ─── Photo handler ────────────────────────────────────────────────────────────
+
 bot.on("photo", async (ctx) => {
   try {
     if (!(await checkDBConnection(ctx))) return;
 
-    // Item reporting photo
     if (ctx.session.reporting?.step === "photo") {
       const photo = ctx.message.photo.pop();
       ctx.session.reporting.photo = photo.file_id;
@@ -641,7 +560,8 @@ bot.on("photo", async (ctx) => {
   }
 });
 
-// Enhanced error handling
+// ─── Error handling ───────────────────────────────────────────────────────────
+
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
@@ -660,7 +580,8 @@ bot.catch((err, ctx) => {
   }
 });
 
-// Vercel serverless handler
+// ─── Vercel serverless handler ────────────────────────────────────────────────
+
 module.exports = async (req, res) => {
   console.log(`Received ${req.method} request`);
 
@@ -673,7 +594,6 @@ module.exports = async (req, res) => {
       res.status(200).send("Error handling update");
     }
   } else {
-    console.log("GET request received");
     res.status(200).send("Telegram bot webhook is running!");
   }
 };
