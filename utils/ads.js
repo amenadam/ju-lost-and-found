@@ -17,6 +17,9 @@ async function maybeShowAd(ctx, bot) {
     // One ad per hour
     if (user.lastAdShownAt) {
       const msSinceLast = Date.now() - new Date(user.lastAdShownAt).getTime();
+      console.log(
+        `User ${ctx.from.id} last saw an ad ${Math.floor(msSinceLast / 1000)} seconds ago`,
+      );
       if (msSinceLast < 60 * 60 * 1000) return;
     }
 
