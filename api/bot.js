@@ -189,10 +189,11 @@ bot.command("addad", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 Not authorized.");
   }
+  if (!(await checkDBConnection(ctx))) return;
   const raw = ctx.message.text.replace("/addad", "").trim();
   if (!raw) {
     return ctx.reply(
-      "Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser]\nExample:\n /addad Check out JU Marketplace! | Visit | https://t.me/example | ACME Co.",
+      "Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser] \nExample: \n /addad Check out JU Marketplace! | Visit | https://t.me/example | ACME Co.",
     );
   }
   const parts = raw.split("|").map((p) => p.trim());
@@ -224,6 +225,7 @@ bot.command("listads", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 Not authorized.");
   }
+  if (!(await checkDBConnection(ctx))) return;
   try {
     const ads = await Ad.find({}).sort({ createdAt: -1 }).limit(20);
     if (ads.length === 0)
@@ -254,6 +256,7 @@ bot.command("togglead", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 Not authorized.");
   }
+  if (!(await checkDBConnection(ctx))) return;
   const id = ctx.message.text.replace("/togglead", "").trim();
   if (!id) return ctx.reply("Usage: /togglead <ad_id>");
   try {
@@ -272,6 +275,7 @@ bot.command("deletead", async (ctx) => {
   if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
     return ctx.reply("🚫 Not authorized.");
   }
+  if (!(await checkDBConnection(ctx))) return;
   const id = ctx.message.text.replace("/deletead", "").trim();
   if (!id) return ctx.reply("Usage: /deletead <ad_id>");
   try {
