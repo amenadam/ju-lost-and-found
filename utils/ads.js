@@ -14,15 +14,10 @@ async function maybeShowAd(ctx, bot) {
     const user = await User.findOne({ telegramId: ctx.from.id });
     if (!user) return;
 
-    // One ad per calendar day (UTC)
+    // One ad per hour
     if (user.lastAdShownAt) {
-      const lastDate = new Date(user.lastAdShownAt);
-      const today = new Date();
-      const sameDay =
-        lastDate.getUTCFullYear() === today.getUTCFullYear() &&
-        lastDate.getUTCMonth() === today.getUTCMonth() &&
-        lastDate.getUTCDate() === today.getUTCDate();
-      if (sameDay) return;
+      const msSinceLast = Date.now() - new Date(user.lastAdShownAt).getTime();
+      if (msSinceLast < 60 * 60 * 1000) return;
     }
 
     const now = new Date();
