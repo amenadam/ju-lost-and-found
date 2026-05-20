@@ -46,6 +46,8 @@ Contact Admin: For bot errors or suggestions, please message @julostandfoundgrou
 v${version}
 
 Powered by @JUStudentsNetwork`);
+
+  return await maybeShowAd(ctx, botInstance);
 }
 
 // ─── Report Lost Item ─────────────────────────────────────────────────────────
@@ -108,6 +110,7 @@ async function handleMyProfile(ctx) {
       `✅ Status: ${user.verified ? "Verified" : "Not Verified"}`,
     Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
   );
+  return await maybeShowAd(ctx, botInstance);
 }
 
 // ─── Edit Profile ─────────────────────────────────────────────────────────────
@@ -182,6 +185,7 @@ async function handleEditFieldInput(ctx) {
       `✅ ${labels[field]} updated successfully!`,
       Markup.keyboard([["Edit Profile", "My Posts"], ["Back"]]).resize(),
     );
+    await maybeShowAd(ctx, botInstance);
     return true;
   } catch (err) {
     console.error("handleEditFieldInput error:", err);

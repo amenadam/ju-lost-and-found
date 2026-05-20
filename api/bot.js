@@ -169,6 +169,8 @@ bot.start(async (ctx) => {
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu(),
     );
+
+    return await maybeShowAd(ctx, bot);
   } else {
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
