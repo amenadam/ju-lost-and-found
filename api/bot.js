@@ -3,6 +3,7 @@ const User = require("../models/User");
 
 const { version } = require("../package.json");
 const { checkDBConnection } = require("../utils/db");
+const Ad = require("../models/Ad");
 const {
   handelHelp,
   handleReportLostItem,
@@ -177,6 +178,108 @@ bot.start(async (ctx) => {
         "**Important:** By continuing, you agree that the information you provide when reporting lost/found items will be posted to our public Telegram channel to help reunite items with their owners.\n\n" +
         "Please register to use our services. Let's start with your full name:",
     );
+  }
+});
+
+// ─── Ad management (admin) ───────────────────────────────────────────────────
+
+// Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser]
+// Example: /addad Check out JU Marketplace! | Visit | https://example.com | ACME Co.
+bot.command("addad", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 Not authorized.");
+  }
+  const raw = ctx.message.text.replace("/addad", "").trim();
+  if (!raw) {
+    return ctx.reply(
+      "Usage: /addad <text> | [buttonLabel] | [buttonUrl] | [advertiser]\nExample:\n /addad Check out JU Marketplace! | Visit | https://t.me/example | ACME Co.",
+    );
+  }
+  const parts = raw.split("|").map((p) => p.trim());
+  const [text, buttonLabel, buttonUrl, advertiser] = parts;
+  if (!text) return ctx.reply("❌ Ad text is required.");
+
+  try {
+    const ad = new Ad({
+      text,
+      buttonLabel: buttonLabel || null,
+      buttonUrl: buttonUrl || null,
+      advertiser: advertiser || null,
+    });
+    await ad.save();
+    await ctx.reply(
+      `✅ Ad created!
+
+ID: ${ad._id}
+Text: ${text}
+Button: ${buttonLabel ? `${buttonLabel} → ${buttonUrl}` : "none"}
+Advertiser: ${advertiser || "—"}`,
+    );
+  } catch (err) {
+    await ctx.reply("❌ Failed to create ad: " + err.message);
+  }
+});
+
+bot.command("listads", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 Not authorized.");
+  }
+  try {
+    const ads = await Ad.find({}).sort({ createdAt: -1 }).limit(20);
+    if (ads.length === 0)
+      return ctx.reply("No ads yet. Use /addad to create one.");
+    let msg = `📋 <b>Ads (${ads.length})</b>
+
+`;
+    for (const ad of ads) {
+      msg += `🆔 <code>${ad._id}</code>
+`;
+      msg += `${ad.active ? "✅ Active" : "⏸ Paused"} | 👁 ${ad.impressions} impressions
+`;
+      msg += `📝 ${ad.text.substring(0, 80)}${ad.text.length > 80 ? "..." : ""}
+`;
+      if (ad.advertiser)
+        msg += `🏢 ${ad.advertiser}
+`;
+      msg += "\n";
+    }
+    await ctx.reply(msg, { parse_mode: "HTML" });
+  } catch (err) {
+    await ctx.reply("❌ Error: " + err.message);
+  }
+});
+
+// /togglead <id>  — activate or pause an ad
+bot.command("togglead", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 Not authorized.");
+  }
+  const id = ctx.message.text.replace("/togglead", "").trim();
+  if (!id) return ctx.reply("Usage: /togglead <ad_id>");
+  try {
+    const ad = await Ad.findById(id);
+    if (!ad) return ctx.reply("❌ Ad not found.");
+    ad.active = !ad.active;
+    await ad.save();
+    await ctx.reply(`${ad.active ? "✅ Ad activated." : "⏸ Ad paused."}`);
+  } catch (err) {
+    await ctx.reply("❌ Error: " + err.message);
+  }
+});
+
+// /deletead <id>
+bot.command("deletead", async (ctx) => {
+  if (!ADMIN_ID || ctx.from.id.toString() !== ADMIN_ID) {
+    return ctx.reply("🚫 Not authorized.");
+  }
+  const id = ctx.message.text.replace("/deletead", "").trim();
+  if (!id) return ctx.reply("Usage: /deletead <ad_id>");
+  try {
+    const result = await Ad.deleteOne({ _id: id });
+    if (result.deletedCount === 0) return ctx.reply("❌ Ad not found.");
+    await ctx.reply("🗑 Ad deleted.");
+  } catch (err) {
+    await ctx.reply("❌ Error: " + err.message);
   }
 });
 

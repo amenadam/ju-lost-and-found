@@ -34,7 +34,6 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Add activity tracking
     lastActivity: {
       type: Date,
       default: Date.now,
@@ -47,13 +46,17 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Tracks the last time an ad was shown so we show max 1 per day
+    lastAdShownAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   },
 );
 
-// Update lastActivity on save
 userSchema.pre("save", function (next) {
   if (this.isModified()) {
     this.lastActivity = Date.now();

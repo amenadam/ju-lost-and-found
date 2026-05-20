@@ -6,6 +6,7 @@ const { Markup } = require("telegraf");
 const { checkDBConnection } = require("../utils/db");
 const { postToChannel } = require("../utils/channel");
 const { version } = require("../package.json");
+const { maybeShowAd } = require("../utils/ads");
 
 let botInstance = null;
 
@@ -329,14 +330,26 @@ async function handleDeletePost(ctx) {
 
     await Model.deleteOne({ _id: itemId });
 
-    // Replace the inline-keyboard message with a confirmation so the button disappears
-    try {
-      await ctx.editMessageText("✅ Deleted.");
-    } catch (_) {}
-
-    // Always send a plain reply so the result is clearly visible in chat
     const label =
       item.itemType === "ID" ? item.studentIdNumber : item.description;
+
+    // Remove the inline keyboard from the button row so it can't be tapped again.
+    // Use a different text so Telegram doesn't throw "message not modified".
+    try {
+      await ctx.editMessageText(`🗑 ${item.itemType} — ${label}`, {
+        reply_markup: { inline_keyboard: [] },
+      });
+    } catch (editErr) {
+      // Ignore "not modified" and "can't be edited" — non-fatal
+      if (
+        !editErr.message?.includes("not modified") &&
+        !editErr.message?.includes("can\'t be edited")
+      ) {
+        console.warn("editMessageText warning:", editErr.message);
+      }
+    }
+
+    // Always send a plain reply — this is the guaranteed visible result
     await ctx.reply(
       `✅ Post deleted successfully!\n\n` +
         `📌 Type: ${item.itemType}\n` +
@@ -347,14 +360,22 @@ async function handleDeletePost(ctx) {
       mainMenu(),
     );
   } catch (error) {
-    console.error("handleDeletePost error:", error);
-    try {
-      await ctx.editMessageText("❌ Failed to delete.");
-    } catch (_) {}
-    await ctx.reply(
-      "❌ Failed to delete the post. Please try again.",
-      mainMenu(),
-    );
+    // Never let an editMessageText failure hide the real outcome
+    const isNotModified =
+      error.message?.includes("not modified") ||
+      error.message?.includes("can\'t be edited");
+    if (!isNotModified) {
+      console.error("handleDeletePost error:", error);
+    }
+    if (!isNotModified) {
+      try {
+        await ctx.editMessageText("❌ Failed to delete.");
+      } catch (_) {}
+      await ctx.reply(
+        "❌ Failed to delete the post. Please try again.",
+        mainMenu(),
+      );
+    }
   }
 }
 
@@ -860,6 +881,9 @@ async function completeItemReport(ctx) {
     );
 
     await checkForMatches(item, reporting.type, ctx);
+
+    // Show a sponsored ad to the user (max once per day, never blocks main flow)
+    await maybeShowAd(ctx, botInstance);
 
     ctx.session.reporting = null;
   } catch (error) {
