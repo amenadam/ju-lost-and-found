@@ -4,6 +4,9 @@ const User = require("../models/User");
 const { version } = require("../package.json");
 const { checkDBConnection } = require("../utils/db");
 const Ad = require("../models/Ad");
+
+const { maybeShowAd } = require("../utils/ads");
+
 const {
   handelHelp,
   handleReportLostItem,
@@ -169,6 +172,7 @@ bot.start(async (ctx) => {
       `Welcome back, ${user.fullName}! How can I help you today?`,
       mainMenu(),
     );
+    return await maybeShowAd(ctx, bot);
   } else {
     ctx.session.registrationState = REGISTRATION_STATES.FULL_NAME;
     ctx.session.registrationStart = Date.now();
