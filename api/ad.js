@@ -9,12 +9,14 @@ let cacheTimestamp = 0;
 async function getActiveAds() {
   const now = Date.now();
   if (adsCache && now - cacheTimestamp < CACHE_TTL_MS) {
+    console.log("Serving ads from cache");
     return adsCache; // ✅ Cache hit
   }
   // Cache miss — fetch from DB
   const ads = await Ad.find({ active: true }).lean();
   adsCache = ads;
   cacheTimestamp = now;
+  console.log("Fetched ads from DB and updated cache");
   return ads;
 }
 
