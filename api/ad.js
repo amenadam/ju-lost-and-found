@@ -36,6 +36,7 @@ checkDBConnection().then(() => {
 });
 
 export async function handler(req, res) {
+  await checkDBConnection();
   console.log(`Received ${req.method} request at /api/ad`);
   if (req.method === "GET") {
     try {
