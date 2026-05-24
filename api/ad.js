@@ -28,14 +28,7 @@ app.get("/", async (req, res) => {
   }
 });
 
-// Start Server
-checkDBConnection().then(() => {
-  app.listen(3000, () => {
-    console.log("Ad API server running on port 3000");
-  });
-});
-
-export async function handler(req, res) {
+module.exports = async (req, res) => {
   await checkDBConnection();
   console.log(`Received ${req.method} request at /api/ad`);
   if (req.method === "GET") {
@@ -56,4 +49,4 @@ export async function handler(req, res) {
   } else {
     res.status(405).json({ message: "Method not allowed" });
   }
-}
+};
