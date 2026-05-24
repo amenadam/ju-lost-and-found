@@ -34,3 +34,25 @@ checkDBConnection().then(() => {
     console.log("Ad API server running on port 3000");
   });
 });
+
+export async function handler(req, res) {
+  console.log(`Received ${req.method} request at /api/ad`);
+  if (req.method === "GET") {
+    try {
+      const ads = await Ad.find({ active: true });
+      if (!ads || ads.length === 0) {
+        return res.status(404).json({ message: "No active ads found" });
+      }
+
+      // 2. Safely pick a random ad now that we know ads exist
+      const randomAd = ads[Math.floor(Math.random() * ads.length)];
+
+      res.status(200).json({ ad: randomAd });
+    } catch (err) {
+      console.error("Error fetching ad:", err);
+      res.status(500).json({ message: "Error fetching ad" });
+    }
+  } else {
+    res.status(405).json({ message: "Method not allowed" });
+  }
+}
