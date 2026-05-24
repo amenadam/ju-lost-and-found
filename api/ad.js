@@ -40,8 +40,9 @@ module.exports = async (req, res) => {
 
       // 2. Safely pick a random ad now that we know ads exist
       const randomAd = ads[Math.floor(Math.random() * ads.length)];
-
-      res.status(200).json({ ad: randomAd });
+      let theAd = await Ad.findById(randomAd._id);
+      await Ad.updateOne({ _id: randomAd._id }, { $inc: { impressions: 1 } });
+      res.status(200).json({ ad: theAd });
     } catch (err) {
       console.error("Error fetching ad:", err);
       res.status(500).json({ message: "Error fetching ad" });
