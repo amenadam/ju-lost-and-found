@@ -1,20 +1,26 @@
 const express = require("express");
+const { checkDBConnection } = require("../utils/db");
+
 const Ad = require("../models/Ad");
 
-const router = express.Router();
-
 const app = express();
+
+// Middleware
 app.use(express.json());
-app.use("/api", router);
-router.get("/ad", async (req, res) => {
+
+// Main Endpoint
+app.get("/", async (req, res) => {
   try {
     const ads = await Ad.find({ active: true });
 
-    const randomAd = ads[Math.floor(Math.random() * ads.length)];
-
-    if (!randomAd) {
+    // 1. Check if the array is empty first
+    if (!ads || ads.length === 0) {
       return res.status(404).json({ message: "No active ads found" });
     }
+
+    // 2. Safely pick a random ad now that we know ads exist
+    const randomAd = ads[Math.floor(Math.random() * ads.length)];
+
     res.json(randomAd);
   } catch (err) {
     console.error("Error fetching ad:", err);
@@ -22,6 +28,9 @@ router.get("/ad", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("Ad API server running on port 3000");
+// Start Server
+checkDBConnection().then(() => {
+  app.listen(3000, () => {
+    console.log("Ad API server running on port 3000");
+  });
 });
