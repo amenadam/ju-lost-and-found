@@ -1,5 +1,6 @@
 const { checkDBConnection } = require("../utils/db");
 const Ad = require("../models/Ad");
+const cors = require("cors")({ origin: true }); // Enable CORS for all origins
 
 // --- Cache config ---
 const CACHE_TTL_MS = 60 * 60 * 1000; // 60 minutes
